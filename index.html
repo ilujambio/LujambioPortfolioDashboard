@@ -1,44 +1,537 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>GenAI Finance App</title>
-  <meta name="description" content="Financial research dashboard for stock price history and AI-generated research notes" />
-  <meta property="og:title" content="GenAI Finance App" />
-  <meta property="og:description" content="Financial research dashboard for stock price history and AI-generated research notes" />
+  <title>Quantitative Portfolio Dashboard</title>
+  <meta name="description" content="Institutional quantitative portfolio screener, inverse volatility optimizer, and AI executive commentary dashboard" />
+  <meta property="og:title" content="Quantitative Portfolio Dashboard" />
+  <meta property="og:description" content="Institutional quantitative portfolio screener, inverse volatility optimizer, and AI executive commentary dashboard" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              950: '#070b13',
+              900: '#0b1120',
+              850: '#0f172a',
+              800: '#1e293b',
+              700: '#334155',
+              600: '#475569',
+              500: '#64748b',
+              400: '#94a3b8',
+              100: '#f1f5f9'
+            },
+            accent: {
+              cyan: '#06b6d4',
+              blue: '#3b82f6',
+              emerald: '#10b981',
+              rose: '#f43f5e',
+              amber: '#f59e0b'
+            }
+          }
+        }
+      }
+    }
+  </script>
   <link rel="stylesheet" href="./style.css" />
 </head>
-<body>
-  <header class="app-header">
-    <h1>GenAI Finance App</h1>
-    <p class="subtitle">Template starting point</p>
+<body class="bg-[#070b13] text-slate-100 min-h-screen flex flex-col font-sans selection:bg-cyan-500/30 selection:text-cyan-200">
+  <!-- Top App Navigation Header -->
+  <header id="main-header" class="border-b border-slate-800/80 bg-[#0b1120]/90 backdrop-blur sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <!-- Left: Logo & System Identifier -->
+      <div class="flex items-center space-x-3">
+        <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <h1 class="font-bold text-base tracking-wide text-white font-mono">QUANTITATIVE PORTFOLIO SUITE</h1>
+            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-cyan-950 text-cyan-400 border border-cyan-800/50 font-mono">INSTITUTIONAL</span>
+          </div>
+          <p class="text-xs text-slate-400 hidden sm:block">Algorithmic Screener &bull; Inverse Volatility Optimization &bull; AI Synthesis</p>
+        </div>
+      </div>
+
+      <!-- Center: Tab Navigation Buttons -->
+      <nav class="flex items-center space-x-1 bg-[#070b13] p-1 rounded-lg border border-slate-800">
+        <button id="tab-btn-dashboard" class="tab-btn px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center space-x-2 bg-slate-800 text-cyan-400 shadow-sm">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+          </svg>
+          <span>Dashboard</span>
+        </button>
+        <button id="tab-btn-settings" class="tab-btn px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center space-x-2 text-slate-400 hover:text-slate-200">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <span>Settings</span>
+          <span id="api-keys-badge" class="hidden w-2 h-2 rounded-full bg-amber-500"></span>
+        </button>
+      </nav>
+
+      <!-- Right: System Status & Version Badge -->
+      <div class="flex items-center space-x-3">
+        <div class="hidden md:flex items-center space-x-2 text-xs font-mono text-slate-400 bg-slate-900/80 px-2.5 py-1 rounded border border-slate-800">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 terminal-pulse"></span>
+          <span id="market-status">FEED: LIVE</span>
+        </div>
+        <!-- Version Indicator -->
+        <div id="app-version-badge" class="flex items-center space-x-1.5 bg-gradient-to-r from-cyan-950 to-slate-900 border border-cyan-800/60 px-2.5 py-1 rounded text-xs font-mono text-cyan-300 shadow-sm">
+          <span class="text-slate-400">VER:</span>
+          <span id="version-display" class="font-semibold text-cyan-400">v1.0.0</span>
+        </div>
+      </div>
+    </div>
   </header>
 
-  <main class="app-main">
-    <section class="panel">
-      <form id="ticker-form">
-        <label for="ticker">Ticker</label>
-        <input id="ticker" name="ticker" type="text" placeholder="e.g. AAPL, MSFT, NVDA" required />
+  <!-- Global Notification / Toast Container -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none"></div>
 
-        <label for="twelvedata-key">Twelve Data API key</label>
-        <input id="twelvedata-key" name="twelvedata-key" type="password" placeholder="Twelve Data key" required />
-        <p class="field-hint">The free Twelve Data plan covers all US stocks and ETFs, limited to 8 requests/minute and 800/day. Get a free key at <a href="https://twelvedata.com/pricing" target="_blank" rel="noopener">twelvedata.com</a>.</p>
+  <!-- Main App Viewport -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
-        <label for="openrouter-key">OpenRouter API key</label>
-        <input id="openrouter-key" name="openrouter-key" type="password" placeholder="sk-or-..." required />
+    <!-- ========================================================================= -->
+    <!-- TAB 1: DASHBOARD TAB                                                      -->
+    <!-- ========================================================================= -->
+    <div id="view-dashboard" class="space-y-6">
 
-        <button type="submit">Analyze</button>
-      </form>
-    </section>
+      <!-- Live Header & Controls Sub-Bar -->
+      <div class="bg-[#0f172a] border border-slate-800 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+        <div class="flex flex-wrap items-center gap-4">
+          <div>
+            <span class="text-xs uppercase font-mono tracking-wider text-slate-400 block">Active Universe</span>
+            <span id="universe-count-badge" class="text-lg font-bold font-mono text-white">0 Tickers</span>
+          </div>
+          <div class="h-8 w-px bg-slate-800 hidden sm:block"></div>
+          <div>
+            <span class="text-xs uppercase font-mono tracking-wider text-slate-400 block">Live Price Refresh</span>
+            <div class="flex items-center space-x-2">
+              <span id="refresh-rate-display" class="text-sm font-mono text-cyan-400 font-semibold">Every 30s</span>
+              <div class="flex items-center space-x-1 text-xs text-slate-400 font-mono">
+                <span>(Next: <span id="refresh-countdown" class="text-slate-200">30s</span>)</span>
+              </div>
+            </div>
+          </div>
+          <div class="h-8 w-px bg-slate-800 hidden sm:block"></div>
+          <div>
+            <span class="text-xs uppercase font-mono tracking-wider text-slate-400 block">Last Price Sync</span>
+            <span id="last-sync-time" class="text-xs font-mono text-slate-300">Awaiting sync...</span>
+          </div>
+        </div>
 
-    <section class="panel" id="results">
-      <p class="placeholder">Results will appear here once you wire up data fetching and your LLM call.</p>
-    </section>
+        <div class="flex items-center space-x-3 w-full md:w-auto justify-end">
+          <button id="btn-manual-sync" title="Fetch current prices immediately" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-mono font-medium border border-slate-700 flex items-center space-x-1.5 transition">
+            <svg id="sync-spinner-icon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span>Sync Quotes</span>
+          </button>
+
+          <!-- Primary CTA: Run Optimization Button -->
+          <button id="btn-run-optimization" class="px-5 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-mono text-xs uppercase tracking-wider font-bold rounded-lg shadow-lg shadow-cyan-500/20 border border-cyan-400/40 flex items-center space-x-2 transition transform active:scale-95 cursor-pointer">
+            <svg id="opt-spinner" class="w-4 h-4 hidden animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <svg id="opt-play-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span id="opt-btn-text">Run Optimization</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Missing API Key Warning Banner if TwelveData key missing -->
+      <div id="missing-key-banner" class="hidden bg-amber-950/40 border border-amber-800/80 rounded-xl p-4 text-amber-200 text-sm flex items-start space-x-3">
+        <svg class="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+        <div class="flex-1">
+          <p class="font-semibold">API Credentials Recommended</p>
+          <p class="text-xs text-amber-300/90 mt-0.5">Please navigate to the <button id="banner-settings-link" class="underline font-semibold text-amber-300 hover:text-white">Settings Tab</button> to configure your TwelveData, OpenRouter, and Newsdata keys. When keys are not supplied, live requests will notify you or simulate standard quotes.</p>
+        </div>
+      </div>
+
+      <!-- Stock Universe Manager Card -->
+      <section id="stock-manager-card" class="bg-[#0f172a] border border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 class="text-sm font-mono uppercase tracking-wider text-slate-300 font-semibold flex items-center space-x-2">
+              <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+              <span>Portfolio Universe & Real-Time Prices</span>
+            </h2>
+            <p class="text-xs text-slate-400 mt-0.5">Manage target asset pool. Prices auto-refresh and flash on price movements.</p>
+          </div>
+
+          <!-- Add Ticker Form & Quick Presets -->
+          <form id="form-add-ticker" class="flex items-center space-x-2">
+            <div class="relative">
+              <input id="input-new-ticker" type="text" placeholder="e.g. NVDA, AAPL" maxlength="10" class="w-36 sm:w-44 px-3 py-1.5 bg-[#070b13] border border-slate-700 rounded-lg text-xs font-mono uppercase text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500" />
+            </div>
+            <button type="submit" class="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-mono font-medium transition flex items-center space-x-1 cursor-pointer">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+              </svg>
+              <span>Add</span>
+            </button>
+          </form>
+        </div>
+
+        <!-- Quick Ticker Preset Pills -->
+        <div class="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
+          <span class="text-slate-400 font-mono text-[11px] mr-1">Presets:</span>
+          <button class="preset-btn px-2 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 font-mono text-[11px]" data-tickers="AAPL,MSFT,NVDA,GOOGL,AMZN,META,TSLA">Big Tech (Mag 7)</button>
+          <button class="preset-btn px-2 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 font-mono text-[11px]" data-tickers="NVDA,TSM,AMD,AVGO,QCOM,ASML,INTC">Semiconductors</button>
+          <button class="preset-btn px-2 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 font-mono text-[11px]" data-tickers="JNJ,PG,KO,PEP,WMT,MCD,COST">Defensive / Low Beta</button>
+          <button class="preset-btn px-2 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 font-mono text-[11px]" data-tickers="SPY,QQQ,IWM,DIA,XLK,XLF,XLE">Core ETFs</button>
+        </div>
+
+        <!-- Real-Time Tickers Grid -->
+        <div id="tickers-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pt-2">
+          <!-- Ticker Cards dynamically rendered here -->
+        </div>
+      </section>
+
+      <!-- Optimization Pipeline Execution Log & Progress Card -->
+      <section id="pipeline-progress-card" class="hidden bg-[#0f172a] border border-cyan-800/60 rounded-xl p-5 shadow-lg space-y-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping"></span>
+            <h3 class="text-sm font-mono uppercase font-bold text-cyan-300">Quantitative Pipeline Running</h3>
+          </div>
+          <span id="pipeline-elapsed" class="text-xs font-mono text-slate-400">Step 1 of 3</span>
+        </div>
+
+        <!-- Pipeline Step Pills -->
+        <div class="grid grid-cols-3 gap-2 text-xs font-mono">
+          <div id="step-pill-1" class="p-2.5 rounded-lg border border-slate-700 bg-slate-800/60 text-slate-400">
+            <div class="font-semibold text-slate-200">1. Screener & Ingestion</div>
+            <div class="text-[11px] text-slate-400">OHLCV, SMA50/200, MACD, RSI</div>
+          </div>
+          <div id="step-pill-2" class="p-2.5 rounded-lg border border-slate-700 bg-slate-800/60 text-slate-400">
+            <div class="font-semibold text-slate-200">2. Inverse Volatility</div>
+            <div class="text-[11px] text-slate-400">Risk Parity Weight Matrix</div>
+          </div>
+          <div id="step-pill-3" class="p-2.5 rounded-lg border border-slate-700 bg-slate-800/60 text-slate-400">
+            <div class="font-semibold text-slate-200">3. AI Thesis Briefing</div>
+            <div class="text-[11px] text-slate-400">Newsdata & OpenRouter LLM</div>
+          </div>
+        </div>
+
+        <!-- Terminal Status Output Console -->
+        <div class="bg-[#070b13] p-3 rounded-lg border border-slate-800 font-mono text-xs text-slate-300 h-28 overflow-y-auto space-y-1" id="pipeline-terminal">
+          <div class="text-cyan-400">> Initiating Quantitative Analysis Engine...</div>
+        </div>
+      </section>
+
+      <!-- ===================================================================== -->
+      <!-- ANALYSIS OUTPUT RESULTS SECTION                                       -->
+      <!-- ===================================================================== -->
+      <div id="analysis-results-container" class="space-y-6">
+
+        <!-- Phase 1: Quantitative Screener Results Table -->
+        <section id="screener-results-card" class="bg-[#0f172a] border border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+            <div>
+              <div class="flex items-center space-x-2">
+                <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-950 text-cyan-400 border border-cyan-800/50">PHASE 1</span>
+                <h2 class="text-base font-bold text-white font-mono">Quantitative Screening Results</h2>
+              </div>
+              <p class="text-xs text-slate-400 mt-1">Multi-factor filtering: Regime (SMA50 &gt; SMA200), Momentum (MACD &gt; 0), Value (RSI &lt; 70). Survivor threshold = 3/3 Pass.</p>
+            </div>
+            <div class="flex items-center space-x-3 text-xs font-mono">
+              <div class="bg-slate-800/90 px-2.5 py-1 rounded border border-slate-700">
+                <span class="text-slate-400">Survivors: </span>
+                <span id="screener-survivor-count" class="font-bold text-emerald-400">0</span>
+              </div>
+              <div class="bg-slate-800/90 px-2.5 py-1 rounded border border-slate-700">
+                <span class="text-slate-400">Filtered Out: </span>
+                <span id="screener-rejected-count" class="font-bold text-rose-400">0</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Screener Table -->
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs font-mono">
+              <thead>
+                <tr class="border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[11px] bg-[#070b13]/50">
+                  <th class="py-3 px-4">Ticker</th>
+                  <th class="py-3 px-4">Close Price</th>
+                  <th class="py-3 px-4">Regime (SMA50 > 200)</th>
+                  <th class="py-3 px-4">Momentum (MACD > 0)</th>
+                  <th class="py-3 px-4">Value (RSI &lt; 70)</th>
+                  <th class="py-3 px-4 text-center">Final Signal</th>
+                </tr>
+              </thead>
+              <tbody id="screener-table-body" class="divide-y divide-slate-800/60">
+                <tr>
+                  <td colspan="6" class="py-8 text-center text-slate-500 font-sans italic">
+                    Click "Run Optimization" above to ingest historical price data and execute the technical screening engine.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Phase 2: Inverse Volatility Portfolio Optimization -->
+        <section id="optimization-results-card" class="bg-[#0f172a] border border-slate-800 rounded-xl p-5 shadow-sm space-y-5">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+            <div>
+              <div class="flex items-center space-x-2">
+                <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-950 text-blue-400 border border-blue-800/50">PHASE 2</span>
+                <h2 class="text-base font-bold text-white font-mono">Inverse Volatility Portfolio Weights</h2>
+              </div>
+              <p class="text-xs text-slate-400 mt-1">Weights allocated inversely proportional to standard deviation (1 / &sigma;) and normalized to 100%.</p>
+            </div>
+
+            <!-- Capital Allocator Input -->
+            <div class="flex items-center space-x-2 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800">
+              <label for="portfolio-capital-input" class="text-xs font-mono text-slate-400">Total Portfolio Value:</label>
+              <div class="flex items-center space-x-1">
+                <span class="text-xs text-slate-400 font-mono">$</span>
+                <input id="portfolio-capital-input" type="number" value="100000" step="1000" min="1000" class="w-24 bg-transparent text-xs font-mono text-cyan-400 font-bold focus:outline-none" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Optimization Visual Bars & Allocation Table -->
+          <div id="optimization-weights-container" class="space-y-4">
+            <div class="py-8 text-center text-slate-500 font-sans italic">
+              Awaiting screening results. Weights will be computed for all stocks passing the 3/3 quantitative filters.
+            </div>
+          </div>
+        </section>
+
+        <!-- Phase 3: AI Executive Commentary & Investment Thesis -->
+        <section id="executive-thesis-card" class="bg-[#0f172a] border border-slate-800 rounded-xl p-5 shadow-sm space-y-5">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+            <div>
+              <div class="flex items-center space-x-2">
+                <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-purple-950 text-purple-400 border border-purple-800/50">PHASE 3</span>
+                <h2 class="text-base font-bold text-white font-mono">AI Executive Commentary & Investment Thesis</h2>
+              </div>
+              <p class="text-xs text-slate-400 mt-1">Synthesized by OpenRouter LLM using real-time portfolio posture & Newsdata API headlines for top holdings.</p>
+            </div>
+
+            <div class="flex items-center space-x-2">
+              <button id="btn-copy-thesis" class="hidden px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs font-mono border border-slate-700 transition items-center space-x-1">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                </svg>
+                <span>Copy</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Top-2 Holdings News Headlines Strip -->
+          <div id="top-holdings-news-container" class="space-y-3">
+            <h4 class="text-xs font-mono uppercase text-slate-400 font-semibold tracking-wider">Top Holdings Intelligence Feed</h4>
+            <div id="news-headlines-list" class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+              <div class="p-3 bg-[#070b13] border border-slate-800 rounded-lg text-slate-500 italic">
+                Newsdata headlines for top weighted assets will appear here during analysis.
+              </div>
+            </div>
+          </div>
+
+          <!-- Investment Thesis Output Body -->
+          <div id="investment-thesis-content" class="bg-[#070b13] border border-slate-800/80 rounded-xl p-5 space-y-3">
+            <div class="flex items-center justify-between text-xs text-slate-400 font-mono border-b border-slate-800/60 pb-2">
+              <span class="flex items-center space-x-1.5">
+                <span class="w-2 h-2 rounded-full bg-purple-400"></span>
+                <span>EXECUTIVE MEMORANDUM</span>
+              </span>
+              <span id="thesis-model-tag" class="text-purple-400 font-semibold">OpenRouter AI</span>
+            </div>
+            <div id="thesis-text" class="text-sm text-slate-300 leading-relaxed font-sans space-y-3">
+              <p class="text-slate-500 italic">Run the quantitative optimizer to trigger LLM synthesis based on active survivors and top market headlines.</p>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 2: SETTINGS TAB                                                       -->
+    <!-- ========================================================================= -->
+    <div id="view-settings" class="hidden space-y-6">
+
+      <!-- Settings Header -->
+      <div class="bg-[#0f172a] border border-slate-800 rounded-xl p-5 shadow-sm space-y-1">
+        <h2 class="text-lg font-bold text-white font-mono flex items-center space-x-2">
+          <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <span>System Configuration & API Keys</span>
+        </h2>
+        <p class="text-xs text-slate-400">All credentials and ticker arrays are saved client-side securely in your browser's <code class="text-cyan-400 bg-slate-900 px-1 py-0.5 rounded font-mono">localStorage</code>. Keys are never hardcoded or sent to third-party tracking.</p>
+      </div>
+
+      <!-- Settings Form -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Left 2 Cols: Form Inputs -->
+        <div class="lg:col-span-2 space-y-6">
+          <form id="form-settings" class="bg-[#0f172a] border border-slate-800 rounded-xl p-6 shadow-sm space-y-5">
+
+            <!-- 1. Twelve Data API Key -->
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between">
+                <label for="input-twelvedata-key" class="text-xs font-mono uppercase tracking-wider text-slate-300 font-semibold flex items-center space-x-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                  <span>Twelve Data API Key</span>
+                </label>
+                <a href="https://twelvedata.com/pricing" target="_blank" rel="noopener noreferrer" class="text-[11px] text-cyan-400 hover:text-cyan-300 underline font-mono">Get free key (8 req/min) &rarr;</a>
+              </div>
+              <div class="relative">
+                <input id="input-twelvedata-key" type="password" placeholder="Enter TwelveData API Key..." class="w-full px-3.5 py-2.5 bg-[#070b13] border border-slate-700 rounded-lg text-xs font-mono text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 pr-10" />
+                <button type="button" class="toggle-pw-btn absolute right-3 top-2.5 text-slate-500 hover:text-slate-300" data-target="input-twelvedata-key">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                </button>
+              </div>
+              <p class="text-[11px] text-slate-500">Provides real-time `/price` ticks and daily historical `/time_series` OHLCV data for technical indicator calculations.</p>
+            </div>
+
+            <!-- 2. OpenRouter API Key -->
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between">
+                <label for="input-openrouter-key" class="text-xs font-mono uppercase tracking-wider text-slate-300 font-semibold flex items-center space-x-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-purple-400"></span>
+                  <span>OpenRouter API Key</span>
+                </label>
+                <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" class="text-[11px] text-purple-400 hover:text-purple-300 underline font-mono">Get key at openrouter.ai &rarr;</a>
+              </div>
+              <div class="relative">
+                <input id="input-openrouter-key" type="password" placeholder="sk-or-v1-..." class="w-full px-3.5 py-2.5 bg-[#070b13] border border-slate-700 rounded-lg text-xs font-mono text-white placeholder-slate-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 pr-10" />
+                <button type="button" class="toggle-pw-btn absolute right-3 top-2.5 text-slate-500 hover:text-slate-300" data-target="input-openrouter-key">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                </button>
+              </div>
+              <p class="text-[11px] text-slate-500">Powers Phase 3 AI Executive Commentary using fast reasoning models (meta-llama/llama-3-8b-instruct).</p>
+            </div>
+
+            <!-- 3. Newsdata API Key -->
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between">
+                <label for="input-newsdata-key" class="text-xs font-mono uppercase tracking-wider text-slate-300 font-semibold flex items-center space-x-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+                  <span>Newsdata API Key</span>
+                </label>
+                <a href="https://newsdata.io/" target="_blank" rel="noopener noreferrer" class="text-[11px] text-blue-400 hover:text-blue-300 underline font-mono">Get key at newsdata.io &rarr;</a>
+              </div>
+              <div class="relative">
+                <input id="input-newsdata-key" type="password" placeholder="pub_..." class="w-full px-3.5 py-2.5 bg-[#070b13] border border-slate-700 rounded-lg text-xs font-mono text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 pr-10" />
+                <button type="button" class="toggle-pw-btn absolute right-3 top-2.5 text-slate-500 hover:text-slate-300" data-target="input-newsdata-key">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                </button>
+              </div>
+              <p class="text-[11px] text-slate-500">Fetches live financial news headlines for top 2 survivor holdings before prompt construction.</p>
+            </div>
+
+            <!-- 4. Live Price Refresh Rate -->
+            <div class="space-y-1.5 pt-2 border-t border-slate-800">
+              <label for="input-refresh-rate" class="text-xs font-mono uppercase tracking-wider text-slate-300 font-semibold block">
+                Live Price Refresh Rate (seconds)
+              </label>
+              <div class="flex items-center space-x-3">
+                <input id="input-refresh-rate" type="number" min="5" max="300" value="30" class="w-32 px-3.5 py-2 bg-[#070b13] border border-slate-700 rounded-lg text-xs font-mono text-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500" />
+                <span class="text-xs text-slate-400 font-mono">seconds (Default: 30s)</span>
+              </div>
+              <p class="text-[11px] text-slate-500">Interval for automated background price polling via <code class="text-slate-400">setInterval</code>.</p>
+            </div>
+
+            <!-- Button Row -->
+            <div class="pt-4 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
+              <div class="flex items-center space-x-2">
+                <button type="submit" class="px-5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-mono font-bold transition flex items-center space-x-1.5 shadow cursor-pointer">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Save Settings</span>
+                </button>
+                <button type="button" id="btn-test-apis" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-mono transition cursor-pointer">
+                  <span>Test API Connections</span>
+                </button>
+              </div>
+
+              <button type="button" id="btn-clear-storage" class="px-3.5 py-2 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-900/80 rounded-lg text-xs font-mono transition flex items-center space-x-1 cursor-pointer">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                <span>Clear Local Storage</span>
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Right 1 Col: Methodology Reference Documentation -->
+        <div class="space-y-4">
+          <div class="bg-[#0f172a] border border-slate-800 rounded-xl p-5 shadow-sm space-y-3 font-mono text-xs">
+            <h3 class="text-slate-200 font-bold uppercase tracking-wider text-[11px] text-cyan-400 border-b border-slate-800 pb-2">
+              Model Technical Specs
+            </h3>
+
+            <div class="space-y-2 text-slate-300">
+              <div class="p-2.5 rounded bg-[#070b13] border border-slate-800 space-y-1">
+                <span class="text-cyan-300 font-bold">1. Regime Filter</span>
+                <p class="text-[11px] text-slate-400 font-sans">SMA50 > SMA200 (Golden Cross regime). Screens out assets in long-term structural downtrends.</p>
+              </div>
+
+              <div class="p-2.5 rounded bg-[#070b13] border border-slate-800 space-y-1">
+                <span class="text-emerald-300 font-bold">2. Momentum Filter</span>
+                <p class="text-[11px] text-slate-400 font-sans">MACD (12, 26, 9) > 0. Validates accelerating intermediate upside velocity.</p>
+              </div>
+
+              <div class="p-2.5 rounded bg-[#070b13] border border-slate-800 space-y-1">
+                <span class="text-blue-300 font-bold">3. Value / RSI Filter</span>
+                <p class="text-[11px] text-slate-400 font-sans">RSI(14) &lt; 70. Rejects short-term overbought exhaustion points.</p>
+              </div>
+
+              <div class="p-2.5 rounded bg-[#070b13] border border-slate-800 space-y-1">
+                <span class="text-purple-300 font-bold">4. Inverse Volatility</span>
+                <p class="text-[11px] text-slate-400 font-sans">Calculates historical daily return volatility (&sigma;). Weight $w_i = \frac{1/\sigma_i}{\sum 1/\sigma_j}$, optimizing risk contribution across survivors.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
   </main>
 
-  <footer class="app-footer">
-    <p>Replace this scaffold with your own build. See README.md for setup notes.</p>
+  <!-- Global Institutional Footer -->
+  <footer class="border-t border-slate-800/80 bg-[#0b1120] py-4 text-xs font-mono text-slate-500">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2">
+      <div class="flex items-center space-x-2">
+        <span class="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>
+        <span>Quantitative Portfolio Dashboard &bull; Version 1.0.0</span>
+      </div>
+      <div class="text-slate-400">
+        Data sources: TwelveData &bull; Newsdata.io &bull; OpenRouter AI
+      </div>
+    </div>
   </footer>
 
   <script type="module" src="./main.js"></script>

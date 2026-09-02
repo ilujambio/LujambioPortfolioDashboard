@@ -1,6 +1,6 @@
 {
-  "name": "GenAI Finance App",
-  "description": "Financial research dashboard for stock price history and AI-generated research notes",
+  "name": "Quantitative Portfolio Dashboard",
+  "description": "Institutional quantitative portfolio screener, inverse volatility optimizer, and AI executive commentary dashboard",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
