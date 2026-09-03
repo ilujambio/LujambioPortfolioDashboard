@@ -1,12 +1,13 @@
 /**
  * Quantitative SPA Portfolio Management Dashboard
- * Version: 1.0.1
- * Features:
+ * Version: 2.0.0
+ * Architecture:
+ * - Market Data Feed: Keyless Yahoo Finance Chart API via CORS Proxy
  * - Intelligent Company Name to US Ticker Resolution (e.g. Infineon -> IFNNY) via OpenRouter LLM & reference database
- * - Strict Ticker Validation: Rejects non-existent / invalid tickers (e.g., ASDQWE)
- * - Zero Data Invention: Strict real-data policy with transparent API error states and rate limit handling
- * - Real-time stock universe manager with auto-refresh & price flash animations
- * - Multi-factor technical screener (SMA50/200, MACD, RSI) on authentic TwelveData daily OHLCV candles
+ * - Strict Ticker Validation: Rejects non-existent / invalid tickers (e.g., ASDQWE) using live Yahoo Finance verification
+ * - Zero Data Invention: Strict real-data policy with transparent API error states
+ * - Real-time stock universe manager with auto-refresh (or 0 for manual-only) & price flash animations
+ * - Client-side technical indicator screening (SMA50, SMA200, MACD, RSI) via technicalindicators library
  * - Inverse Volatility risk-parity portfolio optimization
  * - Authentic Newsdata.io headline ingestion for top holdings
  * - OpenRouter LLM Executive Commentary & Investment Thesis generator
@@ -15,13 +16,12 @@
 // ============================================================================
 // CONSTANTS & INITIAL STATE
 // ============================================================================
-const APP_VERSION = 'v1.0.1';
+const APP_VERSION = 'v2.0.0';
 const DEFAULT_TICKERS = ['AAPL', 'MSFT', 'NVDA', 'GOOGL', 'AMZN', 'META', 'TSLA'];
 const DEFAULT_REFRESH_RATE = 30; // seconds
 
 // Storage keys
 const STORAGE_KEYS = {
-  TWELVEDATA: 'twelvedata_api_key',
   OPENROUTER: 'openrouter_api_key',
   NEWSDATA: 'newsdata_api_key',
   REFRESH_RATE: 'quant_refresh_rate',
@@ -34,7 +34,7 @@ const state = {
   activeTab: 'dashboard',
   tickers: [],
   companyNames: {}, // { [ticker]: "Official Company Name" }
-  prices: {}, // { [ticker]: { price: number|null, prevPrice: number|null, change: number|null, changePercent: number|null, lastUpdate: Date|null, error: string|null, status: 'ok'|'no_key'|'rate_limited'|'error'|'fetching' } }
+  prices: {}, // { [ticker]: { price: number|null, prevPrice: number|null, change: number|null, changePercent: number|null, lastUpdate: Date|null, error: string|null, status: 'ok'|'error'|'fetching' } }
   refreshRate: DEFAULT_REFRESH_RATE,
   countdown: DEFAULT_REFRESH_RATE,
   refreshTimer: null,
@@ -43,7 +43,6 @@ const state = {
   isOptimizing: false,
   analysisData: null,
   apiKeys: {
-    twelveData: '',
     openRouter: '',
     newsData: '',
   },
@@ -129,14 +128,13 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initStorage() {
-  // Load API Keys
-  state.apiKeys.twelveData = localStorage.getItem(STORAGE_KEYS.TWELVEDATA) || '';
+  // Load API Keys (Yahoo Finance requires no key)
   state.apiKeys.openRouter = localStorage.getItem(STORAGE_KEYS.OPENROUTER) || '';
   state.apiKeys.newsData = localStorage.getItem(STORAGE_KEYS.NEWSDATA) || '';
 
-  // Load Refresh Rate
+  // Load Refresh Rate (0 = manual only)
   const savedRate = parseInt(localStorage.getItem(STORAGE_KEYS.REFRESH_RATE), 10);
-  state.refreshRate = (!isNaN(savedRate) && savedRate >= 5) ? savedRate : DEFAULT_REFRESH_RATE;
+  state.refreshRate = (!isNaN(savedRate) && savedRate >= 0) ? savedRate : DEFAULT_REFRESH_RATE;
   state.countdown = state.refreshRate;
 
   // Load Cached Company Names
@@ -166,12 +164,10 @@ function initStorage() {
 
 function initUI() {
   // Populate Settings form inputs
-  const inputTd = document.getElementById('input-twelvedata-key');
   const inputOr = document.getElementById('input-openrouter-key');
   const inputNd = document.getElementById('input-newsdata-key');
   const inputRate = document.getElementById('input-refresh-rate');
 
-  if (inputTd) inputTd.value = state.apiKeys.twelveData;
   if (inputOr) inputOr.value = state.apiKeys.openRouter;
   if (inputNd) inputNd.value = state.apiKeys.newsData;
   if (inputRate) inputRate.value = state.refreshRate;
@@ -188,10 +184,11 @@ function initUI() {
 function updateSettingsBadge() {
   const badge = document.getElementById('api-keys-badge');
   const banner = document.getElementById('missing-key-banner');
-  const hasKeys = state.apiKeys.twelveData && state.apiKeys.openRouter;
+  // Yahoo Finance is active by default. Optional banner for OpenRouter AI commentary:
+  const hasAiKey = Boolean(state.apiKeys.openRouter);
 
   if (badge) {
-    if (!hasKeys) {
+    if (!hasAiKey) {
       badge.classList.remove('hidden');
     } else {
       badge.classList.add('hidden');
@@ -199,11 +196,7 @@ function updateSettingsBadge() {
   }
 
   if (banner) {
-    if (!state.apiKeys.twelveData) {
-      banner.classList.remove('hidden');
-    } else {
-      banner.classList.add('hidden');
-    }
+    banner.classList.add('hidden');
   }
 }
 
@@ -212,8 +205,20 @@ function updateRefreshDisplay() {
   const countdownEl = document.getElementById('refresh-countdown');
   const universeCount = document.getElementById('universe-count-badge');
 
-  if (display) display.textContent = `Every ${state.refreshRate}s`;
-  if (countdownEl) countdownEl.textContent = `${state.countdown}s`;
+  if (display) {
+    if (state.refreshRate === 0) {
+      display.textContent = 'Auto-Refresh: Off';
+    } else {
+      display.textContent = `Every ${state.refreshRate}s`;
+    }
+  }
+  if (countdownEl) {
+    if (state.refreshRate === 0) {
+      countdownEl.textContent = 'Manual';
+    } else {
+      countdownEl.textContent = `${state.countdown}s`;
+    }
+  }
   if (universeCount) universeCount.textContent = `${state.tickers.length} Tickers`;
 }
 
@@ -264,17 +269,18 @@ function initEventHandlers() {
   if (formSettings) {
     formSettings.addEventListener('submit', (e) => {
       e.preventDefault();
-      const tdKey = document.getElementById('input-twelvedata-key').value.trim();
-      const orKey = document.getElementById('input-openrouter-key').value.trim();
-      const ndKey = document.getElementById('input-newsdata-key').value.trim();
-      const rateVal = parseInt(document.getElementById('input-refresh-rate').value, 10);
+      const orInput = document.getElementById('input-openrouter-key');
+      const ndInput = document.getElementById('input-newsdata-key');
+      const rateInput = document.getElementById('input-refresh-rate');
 
-      state.apiKeys.twelveData = tdKey;
+      const orKey = orInput ? orInput.value.trim() : '';
+      const ndKey = ndInput ? ndInput.value.trim() : '';
+      const rateVal = rateInput ? parseInt(rateInput.value, 10) : DEFAULT_REFRESH_RATE;
+
       state.apiKeys.openRouter = orKey;
       state.apiKeys.newsData = ndKey;
-      state.refreshRate = (!isNaN(rateVal) && rateVal >= 5) ? rateVal : 30;
+      state.refreshRate = (!isNaN(rateVal) && rateVal >= 0) ? rateVal : DEFAULT_REFRESH_RATE;
 
-      localStorage.setItem(STORAGE_KEYS.TWELVEDATA, tdKey);
       localStorage.setItem(STORAGE_KEYS.OPENROUTER, orKey);
       localStorage.setItem(STORAGE_KEYS.NEWSDATA, ndKey);
       localStorage.setItem(STORAGE_KEYS.REFRESH_RATE, state.refreshRate.toString());
@@ -283,7 +289,7 @@ function initEventHandlers() {
       updateRefreshDisplay();
       startPricePolling();
 
-      showToast('Settings saved successfully to localStorage', 'success');
+      showToast('Settings saved successfully (Yahoo Finance active)', 'success');
       syncAllPrices(true);
     });
   }
@@ -294,7 +300,6 @@ function initEventHandlers() {
     btnClear.addEventListener('click', () => {
       if (confirm('Are you sure you want to clear all stored API keys, refresh settings, and reset tickers to default?')) {
         localStorage.clear();
-        state.apiKeys.twelveData = '';
         state.apiKeys.openRouter = '';
         state.apiKeys.newsData = '';
         state.refreshRate = DEFAULT_REFRESH_RATE;
@@ -303,15 +308,20 @@ function initEventHandlers() {
         state.prices = {};
         localStorage.setItem(STORAGE_KEYS.TICKERS, JSON.stringify(state.tickers));
 
-        document.getElementById('input-twelvedata-key').value = '';
-        document.getElementById('input-openrouter-key').value = '';
-        document.getElementById('input-newsdata-key').value = '';
-        document.getElementById('input-refresh-rate').value = DEFAULT_REFRESH_RATE;
+        const inputOr = document.getElementById('input-openrouter-key');
+        const inputNd = document.getElementById('input-newsdata-key');
+        const inputRate = document.getElementById('input-refresh-rate');
+
+        if (inputOr) inputOr.value = '';
+        if (inputNd) inputNd.value = '';
+        if (inputRate) inputRate.value = DEFAULT_REFRESH_RATE;
 
         updateSettingsBadge();
         updateRefreshDisplay();
+        startPricePolling();
         renderTickersGrid();
         showToast('Local storage cleared and defaults restored', 'info');
+        syncAllPrices(true);
       }
     });
   }
@@ -515,23 +525,25 @@ async function resolveAndValidateQuery(query) {
       const llmResult = await queryOpenRouterForSymbolResolution(cleanQuery, state.apiKeys.openRouter);
       if (llmResult && typeof llmResult.valid === 'boolean') {
         if (llmResult.valid && llmResult.ticker) {
-          // If TwelveData key is also present, verify ticker actually trades
-          if (state.apiKeys.twelveData) {
-            const tdCheck = await verifyTickerWithTwelveData(llmResult.ticker, state.apiKeys.twelveData);
-            if (!tdCheck.exists) {
+          // Verify with Yahoo Finance that resolved ticker exists and trades
+          try {
+            const chartData = await fetchYahooChart(llmResult.ticker);
+            const livePrice = chartData?.meta?.regularMarketPrice;
+            if (typeof livePrice === 'number' && !isNaN(livePrice)) {
               return {
-                valid: false,
-                reason: `Resolved ticker "${llmResult.ticker}" could not be confirmed on TwelveData market feed (${tdCheck.reason}).`,
+                valid: true,
+                ticker: llmResult.ticker,
+                companyName: llmResult.companyName || chartData.meta.shortName || getCompanyName(llmResult.ticker),
+                matchedFrom: llmResult.matchedFrom || (llmResult.ticker === upperQuery ? 'ticker' : 'company_name'),
+                reason: llmResult.reason || `Identified ${llmResult.ticker} as valid US listing`,
               };
             }
+          } catch (verifyErr) {
+            return {
+              valid: false,
+              reason: `Resolved ticker "${llmResult.ticker}" could not be confirmed on Yahoo Finance (${verifyErr.message}).`,
+            };
           }
-          return {
-            valid: true,
-            ticker: llmResult.ticker,
-            companyName: llmResult.companyName || getCompanyName(llmResult.ticker),
-            matchedFrom: llmResult.matchedFrom || (llmResult.ticker === upperQuery ? 'ticker' : 'company_name'),
-            reason: llmResult.reason || `Identified ${llmResult.ticker} as valid US listing`,
-          };
         } else {
           return {
             valid: false,
@@ -540,60 +552,29 @@ async function resolveAndValidateQuery(query) {
         }
       }
     } catch (llmErr) {
-      console.warn('OpenRouter symbol resolution failed, falling back to TwelveData/heuristic checks:', llmErr);
+      console.warn('OpenRouter symbol resolution failed, falling back to Yahoo Finance directly:', llmErr);
     }
   }
 
-  // 3. Check with TwelveData API if TwelveData key is available
-  if (state.apiKeys.twelveData) {
-    // Check if query directly exists as a ticker on TwelveData
-    const tdCheck = await verifyTickerWithTwelveData(upperQuery, state.apiKeys.twelveData);
-    if (tdCheck.exists) {
+  // 3. Check directly with Yahoo Finance (No API key needed!)
+  try {
+    const chartData = await fetchYahooChart(upperQuery);
+    const livePrice = chartData?.meta?.regularMarketPrice;
+    if (typeof livePrice === 'number' && !isNaN(livePrice)) {
+      const compName = chartData.meta.shortName || chartData.meta.longName || getCompanyName(upperQuery);
       return {
         valid: true,
         ticker: upperQuery,
-        companyName: tdCheck.companyName || getCompanyName(upperQuery),
+        companyName: compName,
         matchedFrom: 'ticker',
-        reason: `Verified ticker ${upperQuery} on TwelveData`,
+        reason: `Verified ticker ${upperQuery} on Yahoo Finance ($${livePrice.toFixed(2)})`,
       };
     }
-
-    // Try TwelveData symbol search if it might be a company name
-    try {
-      const searchRes = await fetch(`https://api.twelvedata.com/symbol_search?symbol=${encodeURIComponent(cleanQuery)}&outputsize=5&apikey=${state.apiKeys.twelveData}`);
-      const searchData = await searchRes.json();
-      if (searchData && searchData.data && Array.isArray(searchData.data) && searchData.data.length > 0) {
-        // Filter for US exchange listings (NASDAQ, NYSE, OTC, BATS)
-        const usMatches = searchData.data.filter(item => {
-          const country = (item.country || '').toUpperCase();
-          const exchange = (item.exchange || '').toUpperCase();
-          return country === 'UNITED STATES' || ['NASDAQ', 'NYSE', 'OTC', 'BATS', 'AMEX', 'ARCA'].some(ex => exchange.includes(ex));
-        });
-
-        if (usMatches.length > 0) {
-          const topMatch = usMatches[0];
-          return {
-            valid: true,
-            ticker: topMatch.symbol,
-            companyName: topMatch.instrument_name || getCompanyName(topMatch.symbol),
-            matchedFrom: 'company_name',
-            reason: `Found US market listing ${topMatch.symbol} (${topMatch.instrument_name})`,
-          };
-        }
-      }
-    } catch (searchErr) {
-      console.warn('TwelveData symbol search error:', searchErr);
-    }
-
-    // If TwelveData checked and failed:
-    return {
-      valid: false,
-      reason: `"${cleanQuery}" is not a recognized stock ticker or company on TwelveData.`,
-    };
+  } catch (yErr) {
+    // Symbol rejected on Yahoo Finance
   }
 
-  // 4. Fallback Validation when no API keys are provided:
-  // Check against known tickers and strict sanity validation (reject random gibberish like ASDQWE)
+  // 4. Fallback Validation for known standard tickers/ETFs
   const isKnownTicker = Object.values(COMPANY_TICKER_REFERENCE).some(c => c.ticker === upperQuery) ||
                         DEFAULT_TICKERS.includes(upperQuery) ||
                         ['SPY', 'QQQ', 'IWM', 'DIA', 'XLK', 'XLF', 'XLE', 'XLV', 'XLY', 'XLI', 'XLP', 'XLU', 'XLB', 'VNQ', 'VTI', 'VOO', 'VEA', 'VWO', 'BND', 'GLD', 'SLV', 'TLT', 'ARKK', 'SMH', 'SOXX', 'IBIT', 'ETHE'].includes(upperQuery);
@@ -608,10 +589,10 @@ async function resolveAndValidateQuery(query) {
     };
   }
 
-  // If no API key configured and not a verified ticker/company:
+  // If not verified:
   return {
     valid: false,
-    reason: `"${cleanQuery}" could not be verified as a valid US stock. Please configure your OpenRouter or TwelveData API key in Settings for live global symbol verification.`,
+    reason: `"${cleanQuery}" is not a recognized or active US stock symbol on Yahoo Finance.`,
   };
 }
 
@@ -680,39 +661,61 @@ Do not include markdown or text outside the JSON object.`;
 }
 
 /**
- * Verifies with TwelveData if a ticker symbol exists and has a real price
+ * Fetch Yahoo Finance chart data via CORS Proxy / local Vite proxy
+ * Base URL pattern: https://corsproxy.io/?https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?range=2y&interval=1d
  */
-async function verifyTickerWithTwelveData(ticker, apiKey) {
-  try {
-    const url = `https://api.twelvedata.com/price?symbol=${ticker}&apikey=${apiKey}`;
-    const res = await fetch(url);
-    const data = await res.json();
+async function fetchYahooChart(ticker) {
+  const queryTicker = encodeURIComponent(ticker.trim().toUpperCase());
+  const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${queryTicker}?range=2y&interval=1d`;
 
-    if (data && data.price && !isNaN(parseFloat(data.price))) {
-      return { exists: true, price: parseFloat(data.price), companyName: getCompanyName(ticker) };
+  const candidateUrls = [
+    `https://corsproxy.io/?${targetUrl}`,
+    `/api/yahoo/v8/finance/chart/${queryTicker}?range=2y&interval=1d`,
+    targetUrl,
+  ];
+
+  let lastError = null;
+
+  for (const url of candidateUrls) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) {
+        continue;
+      }
+      const data = await res.json();
+      if (data && data.chart && data.chart.error) {
+        throw new Error(data.chart.error.description || data.chart.error.code || `Symbol ${ticker} not found`);
+      }
+      if (data && data.chart && Array.isArray(data.chart.result) && data.chart.result.length > 0) {
+        return data.chart.result[0];
+      }
+    } catch (err) {
+      lastError = err;
     }
-
-    if (data && (data.code === 400 || data.code === 404 || data.status === 'error')) {
-      return { exists: false, reason: data.message || 'Symbol not found on TwelveData' };
-    }
-
-    if (data && data.code === 429) {
-      // Rate limited on verification, assume format check
-      return { exists: ticker.length <= 5, reason: 'TwelveData rate limit (429)' };
-    }
-
-    return { exists: false, reason: data.message || 'No price returned' };
-  } catch (err) {
-    return { exists: false, reason: err.message };
   }
+
+  throw new Error(`Failed to fetch Yahoo Finance market data for ${ticker}: ${lastError ? lastError.message : 'No response'}`);
 }
 
 // ============================================================================
 // LIVE REAL PRICE POLLING (ZERO DATA INVENTION)
 // ============================================================================
 function startPricePolling() {
-  if (state.refreshTimer) clearInterval(state.refreshTimer);
-  if (state.countdownTimer) clearInterval(state.countdownTimer);
+  if (state.refreshTimer) {
+    clearInterval(state.refreshTimer);
+    state.refreshTimer = null;
+  }
+  if (state.countdownTimer) {
+    clearInterval(state.countdownTimer);
+    state.countdownTimer = null;
+  }
+
+  // If refresh rate is set to 0, do not refresh automatically
+  if (state.refreshRate === 0) {
+    state.countdown = 0;
+    updateRefreshDisplay();
+    return;
+  }
 
   state.countdown = state.refreshRate;
   updateRefreshDisplay();
@@ -734,7 +737,8 @@ function startPricePolling() {
 }
 
 /**
- * Fetch real-time prices for active tickers using TwelveData /price endpoint
+ * Fetch real-time prices for active tickers using Yahoo Finance Chart endpoint
+ * Extract live price from data.chart.result[0].meta.regularMarketPrice
  * Strictly adheres to NEVER inventing data!
  */
 async function syncAllPrices(manual = false) {
@@ -749,69 +753,41 @@ async function syncAllPrices(manual = false) {
   const lastSyncEl = document.getElementById('last-sync-time');
   const marketStatus = document.getElementById('market-status');
 
-  const tdKey = state.apiKeys.twelveData;
-
-  if (!tdKey) {
-    // If no TwelveData key is configured, mark prices as requiring API key (NEVER invent fake prices)
-    for (const ticker of state.tickers) {
-      if (!state.prices[ticker] || state.prices[ticker].price === null) {
-        state.prices[ticker] = {
-          price: null,
-          prevPrice: null,
-          change: null,
-          changePercent: null,
-          status: 'no_key',
-          error: 'TwelveData API Key required in Settings',
-          lastUpdate: null,
-        };
-      }
-    }
-    renderTickersGrid();
-    if (lastSyncEl) lastSyncEl.textContent = 'API Key Required';
-    if (marketStatus) marketStatus.textContent = 'FEED: KEY REQUIRED';
-    state.isSyncingPrices = false;
-    if (spinner) spinner.classList.remove('animate-spin');
-    if (manual) showToast('Please enter your TwelveData API Key in Settings to fetch real prices', 'warning');
-    return;
-  }
-
   try {
     let successCount = 0;
-    let rateLimitHit = false;
 
     for (const ticker of state.tickers) {
       try {
-        const resp = await fetch(`https://api.twelvedata.com/price?symbol=${ticker}&apikey=${tdKey}`);
-        const data = await resp.json();
+        const result = await fetchYahooChart(ticker);
+        const meta = result.meta || {};
+        const livePrice = meta.regularMarketPrice;
 
-        if (data && data.price && !isNaN(parseFloat(data.price))) {
-          const price = parseFloat(data.price);
-          applyRealPriceUpdate(ticker, price);
+        if (typeof livePrice === 'number' && !isNaN(livePrice)) {
+          const prevClose = meta.chartPreviousClose || meta.previousClose || livePrice;
+          applyRealPriceUpdate(ticker, livePrice, prevClose);
           successCount++;
-        } else if (data && data.code === 429) {
-          rateLimitHit = true;
-          applyPriceErrorState(ticker, 'rate_limited', 'Rate limit (429): Free plan max 8 req/min. Please wait 1 min.');
-        } else if (data && (data.code === 400 || data.code === 404 || data.status === 'error')) {
-          applyPriceErrorState(ticker, 'error', data.message || `Symbol ${ticker} not found`);
+
+          if ((meta.shortName || meta.longName) && !state.companyNames[ticker]) {
+            state.companyNames[ticker] = meta.shortName || meta.longName;
+            localStorage.setItem(STORAGE_KEYS.COMPANY_NAMES, JSON.stringify(state.companyNames));
+          }
         } else {
-          applyPriceErrorState(ticker, 'error', data.message || 'Price unavailable');
+          applyPriceErrorState(ticker, 'error', 'No price returned from Yahoo Finance');
         }
       } catch (err) {
-        applyPriceErrorState(ticker, 'error', err.message || 'Network fetch failed');
+        applyPriceErrorState(ticker, 'error', err.message || 'Yahoo Finance fetch failed');
       }
 
-      // Respect free plan queue pacing
-      await sleep(150);
+      await sleep(100);
     }
 
-    if (rateLimitHit) {
-      if (lastSyncEl) lastSyncEl.textContent = `${timeStr} (Rate Limited)`;
-      if (marketStatus) marketStatus.textContent = 'FEED: RATE LIMITED (429)';
-      if (manual) showToast('TwelveData free tier limit reached (8 req/min). Quotes will retry automatically.', 'warning');
-    } else if (successCount > 0) {
+    if (successCount > 0) {
       if (lastSyncEl) lastSyncEl.textContent = `${timeStr} (Live Synced)`;
-      if (marketStatus) marketStatus.textContent = 'FEED: LIVE';
-      if (manual) showToast(`Real quotes updated for ${successCount} assets`, 'success');
+      if (marketStatus) marketStatus.textContent = 'FEED: LIVE (YAHOO)';
+      if (manual) showToast(`Real Yahoo quotes updated for ${successCount} assets`, 'success');
+    } else {
+      if (lastSyncEl) lastSyncEl.textContent = `${timeStr} (Sync Error)`;
+      if (marketStatus) marketStatus.textContent = 'FEED: ERROR';
     }
   } catch (err) {
     console.error('Error syncing real prices:', err);
@@ -822,33 +798,21 @@ async function syncAllPrices(manual = false) {
 }
 
 async function fetchSingleTickerPrice(ticker) {
-  const tdKey = state.apiKeys.twelveData;
-  if (!tdKey) {
-    state.prices[ticker] = {
-      price: null,
-      prevPrice: null,
-      change: null,
-      changePercent: null,
-      status: 'no_key',
-      error: 'TwelveData API Key required in Settings',
-      lastUpdate: null,
-    };
-    renderTickersGrid();
-    return;
-  }
-
   try {
-    const resp = await fetch(`https://api.twelvedata.com/price?symbol=${ticker}&apikey=${tdKey}`);
-    const data = await resp.json();
-    if (data && data.price && !isNaN(parseFloat(data.price))) {
-      applyRealPriceUpdate(ticker, parseFloat(data.price));
-      return;
-    } else if (data && data.code === 429) {
-      applyPriceErrorState(ticker, 'rate_limited', 'Rate limit (429): Free plan max 8 req/min');
-      return;
-    } else if (data && data.message) {
-      applyPriceErrorState(ticker, 'error', data.message);
-      return;
+    const result = await fetchYahooChart(ticker);
+    const meta = result.meta || {};
+    const livePrice = meta.regularMarketPrice;
+
+    if (typeof livePrice === 'number' && !isNaN(livePrice)) {
+      const prevClose = meta.chartPreviousClose || meta.previousClose || livePrice;
+      applyRealPriceUpdate(ticker, livePrice, prevClose);
+
+      if ((meta.shortName || meta.longName) && !state.companyNames[ticker]) {
+        state.companyNames[ticker] = meta.shortName || meta.longName;
+        localStorage.setItem(STORAGE_KEYS.COMPANY_NAMES, JSON.stringify(state.companyNames));
+      }
+    } else {
+      applyPriceErrorState(ticker, 'error', 'No price returned from Yahoo Finance');
     }
   } catch (e) {
     applyPriceErrorState(ticker, 'error', e.message);
@@ -858,15 +822,16 @@ async function fetchSingleTickerPrice(ticker) {
 /**
  * Updates internal price state with real authentic price and triggers flash animation
  */
-function applyRealPriceUpdate(ticker, newPrice) {
+function applyRealPriceUpdate(ticker, newPrice, prevClose) {
   const prevRecord = state.prices[ticker];
-  const prevPrice = (prevRecord && prevRecord.price !== null) ? prevRecord.price : newPrice;
-  const change = +(newPrice - (prevRecord && prevRecord.prevPrice !== null ? prevRecord.prevPrice : newPrice)).toFixed(2);
-  const changePercent = prevPrice > 0 ? +((change / prevPrice) * 100).toFixed(2) : 0;
+  const oldPrice = (prevRecord && prevRecord.price !== null) ? prevRecord.price : newPrice;
+  const benchmarkClose = (typeof prevClose === 'number' && prevClose > 0) ? prevClose : oldPrice;
+  const change = +(newPrice - benchmarkClose).toFixed(2);
+  const changePercent = benchmarkClose > 0 ? +((change / benchmarkClose) * 100).toFixed(2) : 0;
 
   state.prices[ticker] = {
     price: newPrice,
-    prevPrice: prevPrice,
+    prevPrice: oldPrice,
     change: change,
     changePercent: changePercent,
     status: 'ok',
@@ -971,17 +936,11 @@ function renderTickersGrid() {
     if (hasValidPrice) {
       priceDisplayHtml = `$${data.price.toFixed(2)}`;
       changeDisplayHtml = `${isPos ? '+' : ''}${data.change.toFixed(2)} (${isPos ? '+' : ''}${data.changePercent.toFixed(2)}%)`;
-    } else if (data.status === 'no_key') {
-      priceDisplayHtml = `<span class="text-amber-400 text-xs font-mono">TwelveData Key Needed</span>`;
-      changeDisplayHtml = `<span class="text-slate-500 text-[10px]">Configure in Settings</span>`;
-    } else if (data.status === 'rate_limited') {
-      priceDisplayHtml = `<span class="text-amber-400 text-xs font-mono">Rate Limited (429)</span>`;
-      changeDisplayHtml = `<span class="text-slate-500 text-[10px]">Pacing queue...</span>`;
     } else if (data.status === 'error') {
       priceDisplayHtml = `<span class="text-rose-400 text-xs font-mono" title="${escapeHtml(data.error || 'Fetch failed')}">API Error</span>`;
       changeDisplayHtml = `<span class="text-rose-400/80 text-[10px] truncate max-w-[100px] block">${escapeHtml(data.error || 'Failed')}</span>`;
     } else {
-      priceDisplayHtml = `<span class="text-slate-500 text-xs font-mono animate-pulse">Fetching real quote...</span>`;
+      priceDisplayHtml = `<span class="text-slate-500 text-xs font-mono animate-pulse">Fetching quote...</span>`;
       changeDisplayHtml = `--`;
     }
 
@@ -1111,42 +1070,24 @@ async function runOptimizationPipeline() {
 
   logTerminal(`Starting Quantitative Portfolio Pipeline (${APP_VERSION})...`);
   logTerminal('CRITICAL MANDATE: Zero Simulated Data. Ingesting authentic market endpoints.');
-
-  const tdKey = state.apiKeys.twelveData;
-
-  // Strict check: TwelveData API Key is required for real historical candles
-  if (!tdKey) {
-    logTerminal('[ERROR] TwelveData API Key is missing! Authentic daily OHLCV candles cannot be retrieved.');
-    logTerminal('-> Action Required: Navigate to Settings and input your TwelveData API key.');
-    showToast('TwelveData API key required to fetch real historical data. Never fabricating data.', 'error', 5000);
-    renderScreenerError('TwelveData API key is not configured. Please enter your API key in Settings to calculate technical indicators on real market data.');
-    renderOptimizationError('Cannot compute risk-parity weights without authentic historical data.');
-    renderThesisError('AI commentary paused: Quantitative data not available.');
-
-    state.isOptimizing = false;
-    if (optBtn) optBtn.disabled = false;
-    if (optSpinner) optSpinner.classList.add('hidden');
-    if (optPlayIcon) optPlayIcon.classList.remove('hidden');
-    if (optText) optText.textContent = 'Run Optimization';
-    return;
-  }
+  logTerminal('Data Provider: Yahoo Finance (2-year daily history, no API key required)');
 
   try {
     // ------------------------------------------------------------------------
     // PHASE 1: THE SCREENER (OHLCV, SMA50/200, MACD, RSI)
     // ------------------------------------------------------------------------
     highlightPipelineStep(1);
-    logTerminal(`[PHASE 1] Ingesting real daily OHLCV candles for ${state.tickers.length} tickers via TwelveData...`);
+    logTerminal(`[PHASE 1] Ingesting authentic daily OHLCV candles for ${state.tickers.length} tickers via Yahoo Finance...`);
 
     const screenerResults = [];
     const failedTickers = [];
 
     for (let i = 0; i < state.tickers.length; i++) {
       const ticker = state.tickers[i];
-      logTerminal(`-> Requesting /time_series for ${ticker} [${i + 1}/${state.tickers.length}]...`);
+      logTerminal(`-> Requesting Yahoo chart data for ${ticker} [${i + 1}/${state.tickers.length}]...`);
 
       try {
-        const candles = await fetchHistoricalCandlesFromTwelveData(ticker, tdKey);
+        const candles = await fetchHistoricalCandlesFromYahoo(ticker);
         const metrics = calculateTechnicalIndicators(ticker, candles);
         screenerResults.push(metrics);
         logTerminal(`   [OK] ${ticker}: ${candles.length} candles ingested. SMA50=$${metrics.sma50.toFixed(2)}, RSI=${metrics.rsi.toFixed(1)}`);
@@ -1155,10 +1096,8 @@ async function runOptimizationPipeline() {
         failedTickers.push({ ticker, error: err.message });
       }
 
-      // Delay between requests to respect free-tier TwelveData rate limit (8 req/min)
       if (i < state.tickers.length - 1) {
-        logTerminal('   [Rate Pacing] Waiting 1.5s to preserve API quota...');
-        await sleep(1500);
+        await sleep(150);
       }
     }
 
@@ -1236,74 +1175,120 @@ async function runOptimizationPipeline() {
 }
 
 /**
- * Fetch authentic daily candles strictly from TwelveData API
+ * Fetch authentic daily candles strictly from Yahoo Finance Chart endpoint
+ * Extract:
+ * - result.timestamp
+ * - result.indicators.quote[0]: open, high, low, close, volume
+ * Filter out null/undefined/NaN values
  * NEVER invents fake candles!
  */
-async function fetchHistoricalCandlesFromTwelveData(ticker, apiKey) {
-  const url = `https://api.twelvedata.com/time_series?symbol=${ticker}&interval=1day&outputsize=250&apikey=${apiKey}`;
-  const res = await fetch(url);
-  const json = await res.json();
+async function fetchHistoricalCandlesFromYahoo(ticker) {
+  const result = await fetchYahooChart(ticker);
+  const timestamps = result.timestamp || [];
+  const quote = (result.indicators && result.indicators.quote && result.indicators.quote[0]) || {};
+  const opens = quote.open || [];
+  const highs = quote.high || [];
+  const lows = quote.low || [];
+  const closes = quote.close || [];
+  const volumes = quote.volume || [];
 
-  if (json && json.code === 429) {
-    throw new Error('TwelveData API rate limit exceeded (429: Max 8 req/min on free plan)');
+  const candles = [];
+  for (let i = 0; i < timestamps.length; i++) {
+    const c = closes[i];
+    if (typeof c === 'number' && !isNaN(c) && c > 0) {
+      candles.push({
+        datetime: new Date(timestamps[i] * 1000).toISOString().split('T')[0],
+        timestamp: timestamps[i],
+        open: typeof opens[i] === 'number' && !isNaN(opens[i]) ? opens[i] : c,
+        high: typeof highs[i] === 'number' && !isNaN(highs[i]) ? highs[i] : c,
+        low: typeof lows[i] === 'number' && !isNaN(lows[i]) ? lows[i] : c,
+        close: c,
+        volume: typeof volumes[i] === 'number' && !isNaN(volumes[i]) ? volumes[i] : 0,
+      });
+    }
   }
 
-  if (json && (json.code === 400 || json.code === 404 || json.status === 'error')) {
-    throw new Error(json.message || `Symbol ${ticker} not found on TwelveData`);
+  if (candles.length < 30) {
+    throw new Error(`Insufficient historical data returned for ${ticker} (${candles.length} trading days)`);
   }
 
-  if (!json || !json.values || !Array.isArray(json.values) || json.values.length < 30) {
-    throw new Error(`Insufficient historical data returned for ${ticker} (${(json && json.values && json.values.length) || 0} bars)`);
-  }
-
-  // TwelveData returns newest first; reverse so index 0 is oldest
-  return json.values.reverse().map(v => ({
-    datetime: v.datetime,
-    open: parseFloat(v.open),
-    high: parseFloat(v.high),
-    low: parseFloat(v.low),
-    close: parseFloat(v.close),
-    volume: parseInt(v.volume || '0', 10),
-  }));
+  return candles;
 }
 
 /**
- * Computes SMA(50), SMA(200), MACD(12,26,9), and RSI(14) in pure JavaScript
+ * Computes SMA(50), SMA(200), MACD(12,26,9), and RSI(14) using technicalindicators library
  */
 function calculateTechnicalIndicators(ticker, candles) {
   const closes = candles.map(c => c.close);
   const n = closes.length;
   const lastClose = closes[n - 1];
 
+  const TI = (typeof window !== 'undefined' && (window.technicalindicators || window.TechnicalIndicators)) || {};
+
   // 1. SMA 50
-  const sma50Period = Math.min(50, n);
-  const sma50 = closes.slice(n - sma50Period).reduce((a, b) => a + b, 0) / sma50Period;
+  let sma50 = 0;
+  if (TI.SMA && closes.length >= 50) {
+    const sma50Arr = TI.SMA.calculate({ period: 50, values: closes });
+    sma50 = sma50Arr.length > 0 ? sma50Arr[sma50Arr.length - 1] : lastClose;
+  } else {
+    const p = Math.min(50, n);
+    sma50 = closes.slice(n - p).reduce((a, b) => a + b, 0) / p;
+  }
 
   // 2. SMA 200
-  const sma200Period = Math.min(200, n);
-  const sma200 = closes.slice(n - sma200Period).reduce((a, b) => a + b, 0) / sma200Period;
+  let sma200 = 0;
+  if (TI.SMA && closes.length >= 200) {
+    const sma200Arr = TI.SMA.calculate({ period: 200, values: closes });
+    sma200 = sma200Arr.length > 0 ? sma200Arr[sma200Arr.length - 1] : lastClose;
+  } else {
+    const p = Math.min(200, n);
+    sma200 = closes.slice(n - p).reduce((a, b) => a + b, 0) / p;
+  }
 
   // Regime Check: SMA50 > SMA200
   const regimePass = sma50 > sma200;
 
   // 3. MACD (12, 26, 9)
-  const ema12Arr = calculateEMA(closes, 12);
-  const ema26Arr = calculateEMA(closes, 26);
-  const macdLineArr = [];
-  for (let i = 0; i < n; i++) {
-    macdLineArr.push(ema12Arr[i] - ema26Arr[i]);
+  let macdLine = 0;
+  let signalLine = 0;
+  let macdHist = 0;
+  if (TI.MACD && closes.length >= 26) {
+    const macdResults = TI.MACD.calculate({
+      values: closes,
+      fastPeriod: 12,
+      slowPeriod: 26,
+      signalPeriod: 9,
+      SimpleMAOscillator: false,
+      SimpleMASignal: false,
+    });
+    if (macdResults.length > 0) {
+      const lastM = macdResults[macdResults.length - 1];
+      macdLine = typeof lastM.MACD === 'number' ? lastM.MACD : 0;
+      signalLine = typeof lastM.signal === 'number' ? lastM.signal : 0;
+      macdHist = typeof lastM.histogram === 'number' ? lastM.histogram : (macdLine - signalLine);
+    }
+  } else {
+    const ema12Arr = calculateEMA(closes, 12);
+    const ema26Arr = calculateEMA(closes, 26);
+    const mArr = [];
+    for (let i = 0; i < n; i++) mArr.push(ema12Arr[i] - ema26Arr[i]);
+    const sArr = calculateEMA(mArr, 9);
+    macdLine = mArr[n - 1];
+    signalLine = sArr[n - 1];
+    macdHist = macdLine - signalLine;
   }
-  const signalLineArr = calculateEMA(macdLineArr, 9);
-
-  const macdLine = macdLineArr[n - 1];
-  const signalLine = signalLineArr[n - 1];
-  const macdHist = macdLine - signalLine;
 
   // Momentum Check: MACD > 0
   const momentumPass = macdLine > 0;
 
   // 4. RSI (14)
-  const rsi = calculateRSI(closes, 14);
+  let rsi = 50;
+  if (TI.RSI && closes.length >= 15) {
+    const rsiArr = TI.RSI.calculate({ period: 14, values: closes });
+    rsi = rsiArr.length > 0 ? rsiArr[rsiArr.length - 1] : 50;
+  } else {
+    rsi = calculateRSI(closes, 14);
+  }
 
   // Value Check: RSI < 70 (not overbought)
   const valuePass = rsi < 70;
@@ -1835,29 +1820,26 @@ function renderFormattedThesis(rawText) {
 // API CREDENTIALS CONNECTION TESTER
 // ============================================================================
 async function handleTestApis() {
-  const tdKey = document.getElementById('input-twelvedata-key').value.trim();
-  const orKey = document.getElementById('input-openrouter-key').value.trim();
-  const ndKey = document.getElementById('input-newsdata-key').value.trim();
+  const orInput = document.getElementById('input-openrouter-key');
+  const ndInput = document.getElementById('input-newsdata-key');
+  const orKey = orInput ? orInput.value.trim() : '';
+  const ndKey = ndInput ? ndInput.value.trim() : '';
 
-  showToast('Testing API credentials...', 'info');
+  showToast('Testing API connections...', 'info');
 
   let results = [];
 
-  // Test TwelveData
-  if (tdKey) {
-    try {
-      const res = await fetch(`https://api.twelvedata.com/price?symbol=AAPL&apikey=${tdKey}`);
-      const data = await res.json();
-      if (data && data.price) {
-        results.push('TwelveData: OK ($' + parseFloat(data.price).toFixed(2) + ')');
-      } else {
-        results.push(`TwelveData: ${data.message || 'Error'}`);
-      }
-    } catch {
-      results.push('TwelveData: Network Error');
+  // Test Yahoo Finance Market Feed
+  try {
+    const yChart = await fetchYahooChart('AAPL');
+    const price = yChart?.meta?.regularMarketPrice;
+    if (typeof price === 'number') {
+      results.push(`Yahoo Finance: OK ($${price.toFixed(2)})`);
+    } else {
+      results.push('Yahoo Finance: Error');
     }
-  } else {
-    results.push('TwelveData: No key provided');
+  } catch (err) {
+    results.push(`Yahoo Finance: Error (${err.message})`);
   }
 
   // Test OpenRouter
@@ -1875,7 +1857,7 @@ async function handleTestApis() {
       results.push('OpenRouter: Network Error');
     }
   } else {
-    results.push('OpenRouter: No key provided');
+    results.push('OpenRouter: Optional (Not Set)');
   }
 
   // Test Newsdata
@@ -1891,7 +1873,7 @@ async function handleTestApis() {
       results.push('Newsdata: Network Error');
     }
   } else {
-    results.push('Newsdata: No key provided');
+    results.push('Newsdata: Optional (Not Set)');
   }
 
   showToast(results.join(' | '), 'info', 7000);

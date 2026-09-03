@@ -1,6 +1,6 @@
 {
   "name": "genai-finance-spa-template",
-  "version": "1.0.1",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,5 +10,8 @@
   },
   "devDependencies": {
     "vite": "^5.4.0"
+  },
+  "dependencies": {
+    "technicalindicators": "^3.1.0"
   }
 }

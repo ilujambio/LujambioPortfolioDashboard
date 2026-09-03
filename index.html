@@ -4,9 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Quantitative Portfolio Dashboard</title>
-  <meta name="description" content="Institutional quantitative portfolio screener, inverse volatility optimizer, and AI executive commentary dashboard (v1.0.1)" />
-  <meta property="og:title" content="Quantitative Portfolio Dashboard v1.0.1" />
-  <meta property="og:description" content="Institutional quantitative portfolio screener, inverse volatility optimizer, and AI executive commentary dashboard (v1.0.1)" />
+  <meta name="description" content="Institutional quantitative portfolio screener, inverse volatility optimizer, and AI executive commentary dashboard (v2.0.0)" />
+  <meta property="og:title" content="Quantitative Portfolio Dashboard v2.0.0" />
+  <meta property="og:description" content="Institutional quantitative portfolio screener, inverse volatility optimizer, and AI executive commentary dashboard (v2.0.0)" />
+  <!-- Technical Indicators Library via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/technicalindicators/dist/browser.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -86,7 +88,7 @@
         <!-- Version Indicator -->
         <div id="app-version-badge" class="flex items-center space-x-1.5 bg-gradient-to-r from-cyan-950 to-slate-900 border border-cyan-800/60 px-2.5 py-1 rounded text-xs font-mono text-cyan-300 shadow-sm">
           <span class="text-slate-400">VER:</span>
-          <span id="version-display" class="font-semibold text-cyan-400">v1.0.1</span>
+          <span id="version-display" class="font-semibold text-cyan-400">v2.0.0</span>
         </div>
       </div>
     </div>
@@ -150,14 +152,14 @@
         </div>
       </div>
 
-      <!-- Missing API Key Warning Banner if TwelveData key missing -->
-      <div id="missing-key-banner" class="hidden bg-amber-950/40 border border-amber-800/80 rounded-xl p-4 text-amber-200 text-sm flex items-start space-x-3">
-        <svg class="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+      <!-- Missing API Key Warning Banner if OpenRouter key missing -->
+      <div id="missing-key-banner" class="hidden bg-purple-950/40 border border-purple-800/80 rounded-xl p-4 text-purple-200 text-sm flex items-start space-x-3">
+        <svg class="w-5 h-5 text-purple-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
         <div class="flex-1">
-          <p class="font-semibold">TwelveData API Key Required for Real-Time Market Data</p>
-          <p class="text-xs text-amber-300/90 mt-0.5">Please navigate to the <button id="banner-settings-link" class="underline font-semibold text-amber-300 hover:text-white">Settings Tab</button> to configure your TwelveData and OpenRouter keys. Real data is strictly fetched from authentic API feeds (never simulated or invented).</p>
+          <p class="font-semibold">OpenRouter API Key Recommended for Phase 3 AI Thesis</p>
+          <p class="text-xs text-purple-300/90 mt-0.5">Yahoo Finance real-time prices and quantitative optimization run keyless. Navigate to the <button id="banner-settings-link" class="underline font-semibold text-purple-300 hover:text-white">Settings Tab</button> to configure OpenRouter for AI executive commentary synthesis.</p>
         </div>
       </div>
 
@@ -393,28 +395,21 @@
         <div class="lg:col-span-2 space-y-6">
           <form id="form-settings" class="bg-[#0f172a] border border-slate-800 rounded-xl p-6 shadow-sm space-y-5">
 
-            <!-- 1. Twelve Data API Key -->
-            <div class="space-y-1.5">
+            <!-- Market Data Feed: Yahoo Finance (Keyless) -->
+            <div class="p-4 bg-cyan-950/30 border border-cyan-800/60 rounded-xl space-y-2">
               <div class="flex items-center justify-between">
-                <label for="input-twelvedata-key" class="text-xs font-mono uppercase tracking-wider text-slate-300 font-semibold flex items-center space-x-1.5">
-                  <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
-                  <span>Twelve Data API Key</span>
-                </label>
-                <a href="https://twelvedata.com/pricing" target="_blank" rel="noopener noreferrer" class="text-[11px] text-cyan-400 hover:text-cyan-300 underline font-mono">Get free key (8 req/min) &rarr;</a>
+                <div class="flex items-center space-x-2">
+                  <span class="w-2 h-2 rounded-full bg-emerald-400 terminal-pulse"></span>
+                  <span class="text-xs font-mono uppercase tracking-wider text-cyan-300 font-bold">Market Data Feed: Yahoo Finance</span>
+                </div>
+                <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-900/60 text-cyan-200 border border-cyan-700/50">Zero API Key Required</span>
               </div>
-              <div class="relative">
-                <input id="input-twelvedata-key" type="password" placeholder="Enter TwelveData API Key..." class="w-full px-3.5 py-2.5 bg-[#070b13] border border-slate-700 rounded-lg text-xs font-mono text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 pr-10" />
-                <button type="button" class="toggle-pw-btn absolute right-3 top-2.5 text-slate-500 hover:text-slate-300" data-target="input-twelvedata-key">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                </button>
-              </div>
-              <p class="text-[11px] text-slate-500">Provides real-time `/price` ticks and daily historical `/time_series` OHLCV data for technical indicator calculations.</p>
+              <p class="text-xs text-slate-300">
+                All real-time quotes, 2-year daily OHLCV historical candles, and asset validations are powered by Yahoo Finance chart endpoints. Technical indicators (SMA50, SMA200, MACD, RSI) are computed client-side via <span class="font-mono text-cyan-400">technicalindicators</span>.
+              </p>
             </div>
 
-            <!-- 2. OpenRouter API Key -->
+            <!-- 1. OpenRouter API Key -->
             <div class="space-y-1.5">
               <div class="flex items-center justify-between">
                 <label for="input-openrouter-key" class="text-xs font-mono uppercase tracking-wider text-slate-300 font-semibold flex items-center space-x-1.5">
@@ -432,10 +427,10 @@
                   </svg>
                 </button>
               </div>
-              <p class="text-[11px] text-slate-500">Powers Phase 3 AI Executive Commentary using fast reasoning models (meta-llama/llama-3-8b-instruct).</p>
+              <p class="text-[11px] text-slate-500">Powers Phase 3 AI Executive Commentary using fast reasoning models (meta-llama/llama-3-8b-instruct) and intelligent ticker resolution.</p>
             </div>
 
-            <!-- 3. Newsdata API Key -->
+            <!-- 2. Newsdata API Key -->
             <div class="space-y-1.5">
               <div class="flex items-center justify-between">
                 <label for="input-newsdata-key" class="text-xs font-mono uppercase tracking-wider text-slate-300 font-semibold flex items-center space-x-1.5">
@@ -456,16 +451,16 @@
               <p class="text-[11px] text-slate-500">Fetches live financial news headlines for top 2 survivor holdings before prompt construction.</p>
             </div>
 
-            <!-- 4. Live Price Refresh Rate -->
+            <!-- 3. Live Price Refresh Rate -->
             <div class="space-y-1.5 pt-2 border-t border-slate-800">
               <label for="input-refresh-rate" class="text-xs font-mono uppercase tracking-wider text-slate-300 font-semibold block">
                 Live Price Refresh Rate (seconds)
               </label>
               <div class="flex items-center space-x-3">
-                <input id="input-refresh-rate" type="number" min="5" max="300" value="30" class="w-32 px-3.5 py-2 bg-[#070b13] border border-slate-700 rounded-lg text-xs font-mono text-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500" />
-                <span class="text-xs text-slate-400 font-mono">seconds (Default: 30s)</span>
+                <input id="input-refresh-rate" type="number" min="0" max="300" value="30" class="w-32 px-3.5 py-2 bg-[#070b13] border border-slate-700 rounded-lg text-xs font-mono text-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500" />
+                <span class="text-xs text-slate-400 font-mono">seconds (0 = off / manual sync only, Default: 30s)</span>
               </div>
-              <p class="text-[11px] text-slate-500">Interval for automated background price polling via <code class="text-slate-400">setInterval</code>.</p>
+              <p class="text-[11px] text-slate-500">Interval for automated background price polling via <code class="text-slate-400">setInterval</code>. If set to 0, automated polling is disabled and prices refresh only when page is loaded, manual sync is clicked, or an asset is added.</p>
             </div>
 
             <!-- Button Row -->
@@ -533,10 +528,10 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2">
       <div class="flex items-center space-x-2">
         <span class="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>
-        <span>Quantitative Portfolio Dashboard &bull; Version 1.0.1</span>
+        <span>Quantitative Portfolio Dashboard &bull; Version 2.0.0</span>
       </div>
       <div class="text-slate-400">
-        Data sources: TwelveData &bull; Newsdata.io &bull; OpenRouter AI
+        Data sources: Yahoo Finance &bull; Newsdata.io &bull; OpenRouter AI
       </div>
     </div>
   </footer>
