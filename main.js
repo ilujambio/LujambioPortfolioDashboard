@@ -1,6 +1,6 @@
 /**
  * Quantitative SPA Portfolio Management Dashboard
- * Version: 2.0.0
+ * Version: 2.0.1
  * Architecture:
  * - Market Data Feed: Keyless Yahoo Finance Chart API via CORS Proxy
  * - Intelligent Company Name to US Ticker Resolution (e.g. Infineon -> IFNNY) via OpenRouter LLM & reference database
@@ -16,7 +16,7 @@
 // ============================================================================
 // CONSTANTS & INITIAL STATE
 // ============================================================================
-const APP_VERSION = 'v2.0.0';
+const APP_VERSION = 'v2.0.1';
 const DEFAULT_TICKERS = ['AAPL', 'MSFT', 'NVDA', 'GOOGL', 'AMZN', 'META', 'TSLA'];
 const DEFAULT_REFRESH_RATE = 30; // seconds
 
@@ -661,34 +661,51 @@ Do not include markdown or text outside the JSON object.`;
 }
 
 /**
- * Fetch Yahoo Finance chart data via CORS Proxy / local Vite proxy
- * Base URL pattern: https://corsproxy.io/?https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?range=2y&interval=1d
+ * Fetch authentic Yahoo Finance chart data via server proxy
+ * Base URL pattern: /api/yahoo/v8/finance/chart/{ticker}?range=2y&interval=1d
  */
 async function fetchYahooChart(ticker) {
   const queryTicker = encodeURIComponent(ticker.trim().toUpperCase());
-  const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${queryTicker}?range=2y&interval=1d`;
+  const chartPath = `/v8/finance/chart/${queryTicker}?range=2y&interval=1d`;
 
+  // Candidate endpoints (absolute / relative to support subpath hosting)
   const candidateUrls = [
-    `https://corsproxy.io/?${targetUrl}`,
-    `/api/yahoo/v8/finance/chart/${queryTicker}?range=2y&interval=1d`,
-    targetUrl,
+    `/api/yahoo${chartPath}`,
+    `./api/yahoo${chartPath}`,
   ];
 
   let lastError = null;
 
   for (const url of candidateUrls) {
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, {
+        headers: {
+          'Accept': 'application/json, text/plain, */*',
+        },
+      });
+
       if (!res.ok) {
+        lastError = new Error(`Server returned status ${res.status}`);
         continue;
       }
-      const data = await res.json();
+
+      const contentType = res.headers.get('content-type') || '';
+      const text = await res.text();
+
+      // Check if received HTML error page instead of JSON
+      if (!text || text.trim().startsWith('<')) {
+        lastError = new Error('Received unexpected HTML response');
+        continue;
+      }
+
+      const data = JSON.parse(text);
       if (data && data.chart && data.chart.error) {
         throw new Error(data.chart.error.description || data.chart.error.code || `Symbol ${ticker} not found`);
       }
       if (data && data.chart && Array.isArray(data.chart.result) && data.chart.result.length > 0) {
         return data.chart.result[0];
       }
+      lastError = new Error('Empty chart data returned');
     } catch (err) {
       lastError = err;
     }
