@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Quantitative Portfolio Dashboard</title>
-  <meta name="description" content="Institutional quantitative portfolio screener, inverse volatility optimizer, and AI executive commentary dashboard (v2.0.1)" />
-  <meta property="og:title" content="Quantitative Portfolio Dashboard v2.0.1" />
-  <meta property="og:description" content="Institutional quantitative portfolio screener, inverse volatility optimizer, and AI executive commentary dashboard (v2.0.1)" />
+  <title>Quantitative Portfolio Dashboard v3.0.0</title>
+  <meta name="description" content="Institutional quantitative portfolio screener, inverse volatility optimizer, and AI executive commentary dashboard (v3.0.0)" />
+  <meta property="og:title" content="Quantitative Portfolio Dashboard v3.0.0" />
+  <meta property="og:description" content="Institutional quantitative portfolio screener, inverse volatility optimizer, and AI executive commentary dashboard (v3.0.0)" />
   <!-- Technical Indicators Library via CDN -->
   <script src="https://cdn.jsdelivr.net/npm/technicalindicators/dist/browser.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -88,7 +88,7 @@
         <!-- Version Indicator -->
         <div id="app-version-badge" class="flex items-center space-x-1.5 bg-gradient-to-r from-cyan-950 to-slate-900 border border-cyan-800/60 px-2.5 py-1 rounded text-xs font-mono text-cyan-300 shadow-sm">
           <span class="text-slate-400">VER:</span>
-          <span id="version-display" class="font-semibold text-cyan-400">v2.0.1</span>
+          <span id="version-display" class="font-semibold text-cyan-400">v3.0.0</span>
         </div>
       </div>
     </div>
@@ -110,7 +110,7 @@
         <div class="flex flex-wrap items-center gap-4">
           <div>
             <span class="text-xs uppercase font-mono tracking-wider text-slate-400 block">Active Universe</span>
-            <span id="universe-count-badge" class="text-lg font-bold font-mono text-white">0 Tickers</span>
+            <span id="universe-count-badge" class="text-lg font-bold font-mono text-white">20 Tickers</span>
           </div>
           <div class="h-8 w-px bg-slate-800 hidden sm:block"></div>
           <div>
@@ -163,49 +163,29 @@
         </div>
       </div>
 
-      <!-- Stock Universe Manager Card -->
+      <!-- Stock Universe Card (Read-only on Main Menu; modification restricted to Settings -> Portfolio) -->
       <section id="stock-manager-card" class="bg-[#0f172a] border border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h2 class="text-sm font-mono uppercase tracking-wider text-slate-300 font-semibold flex items-center space-x-2">
               <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
-              <span>Portfolio Universe & Real-Time Prices</span>
+              <span>Portfolio Universe & Real-Time Quotes</span>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800/60 font-mono">Predefined 20 Stocks</span>
             </h2>
-            <p class="text-xs text-slate-400 mt-0.5">Enter US tickers (e.g. <span class="text-cyan-400 font-mono">NVDA</span>) or company names (e.g. <span class="text-cyan-400 font-mono">Infineon &rarr; IFNNY</span>). Non-existent tickers are rejected.</p>
+            <p class="text-xs text-slate-400 mt-0.5">Institutional selection across leading semiconductor, technology, and industrial equipment companies. Asset modifications are managed exclusively via the Settings menu.</p>
           </div>
 
-          <!-- Add Ticker Form & Quick Presets -->
-          <form id="form-add-ticker" class="flex flex-col sm:flex-row sm:items-center gap-2">
-            <div class="relative flex items-center">
-              <input id="input-new-ticker" type="text" placeholder="Ticker or Company (e.g. Infineon, AAPL)" maxlength="50" class="w-56 sm:w-64 px-3 py-1.5 bg-[#070b13] border border-slate-700 rounded-lg text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500" />
-            </div>
-            <button id="btn-add-ticker-submit" type="submit" class="px-3.5 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-mono font-medium transition flex items-center justify-center space-x-1 cursor-pointer">
-              <svg id="add-ticker-spinner" class="w-3.5 h-3.5 hidden animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              <svg id="add-ticker-plus-icon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-              </svg>
-              <span id="add-ticker-btn-text">Add / Resolve</span>
-            </button>
-          </form>
+          <button id="btn-goto-settings-portfolio" class="self-start sm:self-auto px-3.5 py-1.5 bg-slate-800/90 hover:bg-slate-700 text-cyan-300 hover:text-cyan-200 rounded-lg text-xs font-mono font-medium border border-slate-700 flex items-center space-x-1.5 transition shadow-sm cursor-pointer">
+            <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <span>Manage Universe in Settings &rarr;</span>
+          </button>
         </div>
 
-        <!-- Inline Ticker Validation Feedback Banner (Hidden by default) -->
-        <div id="ticker-validation-feedback" class="hidden p-2.5 rounded-lg text-xs font-mono border"></div>
-
-        <!-- Quick Ticker Preset Pills -->
-        <div class="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
-          <span class="text-slate-400 font-mono text-[11px] mr-1">Presets:</span>
-          <button class="preset-btn px-2 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 font-mono text-[11px]" data-tickers="AAPL,MSFT,NVDA,GOOGL,AMZN,META,TSLA">Big Tech (Mag 7)</button>
-          <button class="preset-btn px-2 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 font-mono text-[11px]" data-tickers="NVDA,TSM,AMD,AVGO,QCOM,ASML,INTC">Semiconductors</button>
-          <button class="preset-btn px-2 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 font-mono text-[11px]" data-tickers="JNJ,PG,KO,PEP,WMT,MCD,COST">Defensive / Low Beta</button>
-          <button class="preset-btn px-2 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 font-mono text-[11px]" data-tickers="SPY,QQQ,IWM,DIA,XLK,XLF,XLE">Core ETFs</button>
-        </div>
-
-        <!-- Real-Time Tickers Grid -->
-        <div id="tickers-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pt-2">
+        <!-- Real-Time Tickers Grid (No remove buttons on Main Menu) -->
+        <div id="tickers-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pt-1">
           <!-- Ticker Cards dynamically rendered here -->
         </div>
       </section>
@@ -376,20 +356,132 @@
     <!-- ========================================================================= -->
     <div id="view-settings" class="hidden space-y-6">
 
-      <!-- Settings Header -->
-      <div class="bg-[#0f172a] border border-slate-800 rounded-xl p-5 shadow-sm space-y-1">
-        <h2 class="text-lg font-bold text-white font-mono flex items-center space-x-2">
-          <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-          <span>System Configuration & API Keys</span>
-        </h2>
-        <p class="text-xs text-slate-400">All credentials and ticker arrays are saved client-side securely in your browser's <code class="text-cyan-400 bg-slate-900 px-1 py-0.5 rounded font-mono">localStorage</code>. Keys are never hardcoded or sent to third-party tracking.</p>
+      <!-- Settings Header & Subcategory Navigation -->
+      <div class="bg-[#0f172a] border border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 class="text-lg font-bold text-white font-mono flex items-center space-x-2">
+              <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span>System Settings & Portfolio Configuration</span>
+            </h2>
+            <p class="text-xs text-slate-400 mt-0.5">Manage the stock universe analyzed by the optimizer under 'Portfolio', or configure API keys & feeds.</p>
+          </div>
+
+          <!-- Subcategory Nav Buttons -->
+          <div class="flex items-center space-x-1.5 bg-[#070b13] p-1 rounded-lg border border-slate-800 self-start sm:self-auto">
+            <button id="settings-subtab-portfolio" class="settings-subtab-btn px-4 py-1.5 rounded-md text-xs font-mono font-semibold transition-all flex items-center space-x-2 bg-slate-800 text-cyan-400 shadow-sm cursor-pointer">
+              <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+              <span>Portfolio</span>
+              <span id="settings-portfolio-count-badge" class="px-1.5 py-0.2 rounded text-[10px] bg-cyan-950 text-cyan-300 border border-cyan-800/60 font-mono">20</span>
+            </button>
+            <button id="settings-subtab-general" class="settings-subtab-btn px-4 py-1.5 rounded-md text-xs font-mono font-semibold transition-all flex items-center space-x-1.5 text-slate-400 hover:text-slate-200 cursor-pointer">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+              </svg>
+              <span>API Keys & Feeds</span>
+            </button>
+          </div>
+        </div>
       </div>
 
-      <!-- Settings Form -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- ======================================================================= -->
+      <!-- SETTINGS SUBCATEGORY 1: PORTFOLIO                                       -->
+      <!-- ======================================================================= -->
+      <div id="settings-section-portfolio" class="space-y-6">
+
+        <div class="bg-[#0f172a] border border-slate-800 rounded-xl p-6 shadow-sm space-y-5">
+          <!-- Portfolio Header with Action Bar -->
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+            <div>
+              <div class="flex items-center space-x-2">
+                <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+                <h3 class="text-sm font-mono uppercase font-bold text-white tracking-wider">Subcategory: Portfolio Stock Universe</h3>
+                <span class="px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 text-[10px] font-mono border border-cyan-800/50">Exclusive Analysis Universe</span>
+              </div>
+              <p class="text-xs text-slate-400 mt-1">
+                The Quantitative Screener, Inverse Volatility Optimizer, and AI Thesis operate solely on the stocks configured below. Add new stocks, remove unwanted holdings, or reset to the 20 predefined stocks.
+              </p>
+            </div>
+
+            <!-- Action button: Reset to 20 Predefined Stocks -->
+            <button id="btn-reset-predefined-universe" type="button" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 hover:text-white rounded-lg text-xs font-mono font-medium border border-slate-700 flex items-center space-x-1.5 transition self-start md:self-auto cursor-pointer shadow-sm">
+              <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span>Reset to Predefined 20 Stocks</span>
+            </button>
+          </div>
+
+          <!-- Add Ticker Form in Settings -->
+          <div class="bg-[#070b13] border border-slate-800 rounded-xl p-4 space-y-3">
+            <h4 class="text-xs font-mono uppercase font-semibold text-slate-300 flex items-center space-x-1.5">
+              <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+              </svg>
+              <span>Add Stock to Portfolio Universe</span>
+            </h4>
+            <form id="form-add-ticker-settings" class="flex flex-col sm:flex-row sm:items-center gap-3">
+              <div class="relative flex-1">
+                <input id="input-new-ticker-settings" type="text" placeholder="Enter US ticker (e.g. NVDA, STM) or company name (e.g. Infineon, Caterpillar)..." maxlength="60" class="w-full px-3.5 py-2.5 bg-[#0f172a] border border-slate-700 rounded-lg text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500" />
+              </div>
+              <button id="btn-add-ticker-settings-submit" type="submit" class="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-mono font-bold transition flex items-center justify-center space-x-2 shadow cursor-pointer">
+                <svg id="add-ticker-settings-spinner" class="w-3.5 h-3.5 hidden animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <svg id="add-ticker-settings-plus" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                <span id="add-ticker-settings-text">Add to Universe</span>
+              </button>
+            </form>
+
+            <!-- Inline validation feedback banner in Settings -->
+            <div id="ticker-validation-feedback-settings" class="hidden p-3 rounded-lg text-xs font-mono border"></div>
+          </div>
+
+          <!-- Active Universe List / Table -->
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono uppercase tracking-wider text-slate-300 font-semibold flex items-center space-x-2">
+                <span>Active Universe Stocks</span>
+                <span id="settings-universe-count" class="px-2 py-0.5 rounded bg-slate-800 text-cyan-400 font-mono text-xs border border-slate-700">20</span>
+              </span>
+              <span class="text-[11px] font-mono text-slate-400 hidden sm:inline">Individual stocks can be removed below</span>
+            </div>
+
+            <!-- Table Container -->
+            <div class="overflow-x-auto rounded-xl border border-slate-800 bg-[#070b13]">
+              <table class="w-full text-left text-xs font-mono">
+                <thead class="bg-slate-900/90 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800">
+                  <tr>
+                    <th class="px-4 py-3 w-12">#</th>
+                    <th class="px-4 py-3">Symbol</th>
+                    <th class="px-4 py-3">Company Name</th>
+                    <th class="px-4 py-3">Industry / Sector</th>
+                    <th class="px-4 py-3 text-right">Market Price</th>
+                    <th class="px-4 py-3 text-right w-24">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="settings-universe-table-body" class="divide-y divide-slate-800/60 text-slate-300">
+                  <!-- Dynamic rows rendered by renderSettingsUniverseTable -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ======================================================================= -->
+      <!-- SETTINGS SUBCATEGORY 2: API KEYS & FEEDS                                -->
+      <!-- ======================================================================= -->
+      <div id="settings-section-general" class="hidden grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         <!-- Left 2 Cols: Form Inputs -->
         <div class="lg:col-span-2 space-y-6">
@@ -528,7 +620,7 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2">
       <div class="flex items-center space-x-2">
         <span class="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>
-        <span>Quantitative Portfolio Dashboard &bull; Version 2.0.1</span>
+        <span>Quantitative Portfolio Dashboard &bull; Version 3.0.0</span>
       </div>
       <div class="text-slate-400">
         Data sources: Yahoo Finance &bull; Newsdata.io &bull; OpenRouter AI

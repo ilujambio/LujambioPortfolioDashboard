@@ -1,7 +1,9 @@
 /**
  * Quantitative SPA Portfolio Management Dashboard
- * Version: 2.0.1
+ * Version: 3.0.0
  * Architecture:
+ * - Restricted Portfolio Universe: Predefined 20 Institutional Stocks (Tech, Semis, Industrials)
+ * - Portfolio Management moved to Settings -> Portfolio subcategory (Dashboard modifications disabled)
  * - Market Data Feed: Keyless Yahoo Finance Chart API via CORS Proxy
  * - Intelligent Company Name to US Ticker Resolution (e.g. Infineon -> IFNNY) via OpenRouter LLM & reference database
  * - Strict Ticker Validation: Rejects non-existent / invalid tickers (e.g., ASDQWE) using live Yahoo Finance verification
@@ -16,8 +18,33 @@
 // ============================================================================
 // CONSTANTS & INITIAL STATE
 // ============================================================================
-const APP_VERSION = 'v2.0.1';
-const DEFAULT_TICKERS = ['AAPL', 'MSFT', 'NVDA', 'GOOGL', 'AMZN', 'META', 'TSLA'];
+const APP_VERSION = 'v3.0.0';
+
+// The 20 predefined stocks requested for the quantitative portfolio universe
+const PREDEFINED_20_STOCKS = [
+  'IFNNY', // Infineon Technologies
+  'NXPI',  // NXP Semiconductors
+  'STM',   // STMicroelectronics
+  'NVDA',  // Nvidia
+  'ASML',  // ASML Holding
+  'TSM',   // Taiwan Semiconductor Manufacturing Company
+  'TXN',   // Texas Instruments
+  'ADI',   // Analog Devices
+  'AAPL',  // Apple
+  'MSFT',  // Microsoft
+  'AMZN',  // Amazon
+  'GOOGL', // Alphabet
+  'META',  // Meta Platforms
+  'TSLA',  // Tesla
+  'SIEGY', // Siemens
+  'CAT',   // Caterpillar
+  'HON',   // Honeywell
+  'ROK',   // Rockwell Automation
+  'DE',    // Deere & Company
+  'EMR',   // Emerson Electric
+];
+
+const DEFAULT_TICKERS = [...PREDEFINED_20_STOCKS];
 const DEFAULT_REFRESH_RATE = 30; // seconds
 
 // Storage keys
@@ -29,9 +56,58 @@ const STORAGE_KEYS = {
   COMPANY_NAMES: 'quant_cached_company_names',
 };
 
+// Official company names for predefined universe
+const PREDEFINED_STOCK_NAMES = {
+  'IFNNY': 'Infineon Technologies AG',
+  'NXPI': 'NXP Semiconductors N.V.',
+  'STM': 'STMicroelectronics N.V.',
+  'NVDA': 'NVIDIA Corporation',
+  'ASML': 'ASML Holding N.V.',
+  'TSM': 'Taiwan Semiconductor Manufacturing Co.',
+  'TXN': 'Texas Instruments Incorporated',
+  'ADI': 'Analog Devices, Inc.',
+  'AAPL': 'Apple Inc.',
+  'MSFT': 'Microsoft Corporation',
+  'AMZN': 'Amazon.com, Inc.',
+  'GOOGL': 'Alphabet Inc. (Class A)',
+  'META': 'Meta Platforms, Inc.',
+  'TSLA': 'Tesla, Inc.',
+  'SIEGY': 'Siemens AG',
+  'CAT': 'Caterpillar Inc.',
+  'HON': 'Honeywell International Inc.',
+  'ROK': 'Rockwell Automation, Inc.',
+  'DE': 'Deere & Company',
+  'EMR': 'Emerson Electric Co.',
+};
+
+// Institutional Sector & Industry Categorization
+const STOCK_SECTORS = {
+  'IFNNY': 'Semiconductors & Power',
+  'NXPI': 'Automotive & IoT Semiconductors',
+  'STM': 'Semiconductors & Microcontrollers',
+  'NVDA': 'Accelerated Computing & AI GPUs',
+  'ASML': 'Semiconductor Lithography',
+  'TSM': 'Semiconductor Foundry',
+  'TXN': 'Analog & Embedded Semiconductors',
+  'ADI': 'Analog & Mixed-Signal ICs',
+  'AAPL': 'Consumer Tech & Hardware',
+  'MSFT': 'Enterprise Software & Cloud',
+  'AMZN': 'E-Commerce & Cloud Infrastructure',
+  'GOOGL': 'Search, Cloud & AI Systems',
+  'META': 'Social Media & AI Platforms',
+  'TSLA': 'Electric Vehicles & Clean Energy',
+  'SIEGY': 'Industrial Automation & Digital',
+  'CAT': 'Construction & Heavy Machinery',
+  'HON': 'Diversified Industrials & Aerospace',
+  'ROK': 'Industrial Automation & Robotics',
+  'DE': 'Agricultural & Heavy Equipment',
+  'EMR': 'Industrial Automation & Solutions',
+};
+
 // Global App State
 const state = {
   activeTab: 'dashboard',
+  settingsSubtab: 'portfolio', // 'portfolio' | 'general'
   tickers: [],
   companyNames: {}, // { [ticker]: "Official Company Name" }
   prices: {}, // { [ticker]: { price: number|null, prevPrice: number|null, change: number|null, changePercent: number|null, lastUpdate: Date|null, error: string|null, status: 'ok'|'error'|'fetching' } }
@@ -50,45 +126,70 @@ const state = {
 
 // Built-in US reference directory for fast company name resolution & ADR lookup
 const COMPANY_TICKER_REFERENCE = {
-  'INFINEON': { ticker: 'IFNNY', name: 'Infineon Technologies AG (ADR)' },
-  'INFINEON TECHNOLOGIES': { ticker: 'IFNNY', name: 'Infineon Technologies AG (ADR)' },
-  'SIEMENS': { ticker: 'SIEGY', name: 'Siemens AG (ADR)' },
-  'ADIDAS': { ticker: 'ADDYY', name: 'Adidas AG (ADR)' },
-  'BAYER': { ticker: 'BAYRY', name: 'Bayer AG (ADR)' },
-  'BASF': { ticker: 'BASFY', name: 'BASF SE (ADR)' },
-  'VOLKSWAGEN': { ticker: 'VWAGY', name: 'Volkswagen AG (ADR)' },
-  'BMW': { ticker: 'BMWYY', name: 'Bayerische Motoren Werke AG (ADR)' },
-  'MERCEDES': { ticker: 'MBGYY', name: 'Mercedes-Benz Group AG (ADR)' },
-  'MERCEDES BENZ': { ticker: 'MBGYY', name: 'Mercedes-Benz Group AG (ADR)' },
-  'SAP': { ticker: 'SAP', name: 'SAP SE (ADR)' },
-  'ASML': { ticker: 'ASML', name: 'ASML Holding NV' },
+  // Predefined 20 Stocks & Variations
+  'INFINEON': { ticker: 'IFNNY', name: 'Infineon Technologies AG' },
+  'INFINEON TECHNOLOGIES': { ticker: 'IFNNY', name: 'Infineon Technologies AG' },
+  'NXP': { ticker: 'NXPI', name: 'NXP Semiconductors N.V.' },
+  'NXP SEMICONDUCTORS': { ticker: 'NXPI', name: 'NXP Semiconductors N.V.' },
+  'STMICROELECTRONICS': { ticker: 'STM', name: 'STMicroelectronics N.V.' },
+  'ST MICROELECTRONICS': { ticker: 'STM', name: 'STMicroelectronics N.V.' },
+  'ST MICRO': { ticker: 'STM', name: 'STMicroelectronics N.V.' },
+  'STMICRO': { ticker: 'STM', name: 'STMicroelectronics N.V.' },
+  'NVIDIA': { ticker: 'NVDA', name: 'NVIDIA Corporation' },
+  'NVDA': { ticker: 'NVDA', name: 'NVIDIA Corporation' },
+  'ASML': { ticker: 'ASML', name: 'ASML Holding N.V.' },
+  'ASML HOLDING': { ticker: 'ASML', name: 'ASML Holding N.V.' },
   'TSMC': { ticker: 'TSM', name: 'Taiwan Semiconductor Manufacturing Co.' },
   'TAIWAN SEMICONDUCTOR': { ticker: 'TSM', name: 'Taiwan Semiconductor Manufacturing Co.' },
-  'SONY': { ticker: 'SONY', name: 'Sony Group Corp. (ADR)' },
-  'TOYOTA': { ticker: 'TM', name: 'Toyota Motor Corp. (ADR)' },
-  'HONDA': { ticker: 'HMC', name: 'Honda Motor Co. (ADR)' },
-  'NINTENDO': { ticker: 'NTDOY', name: 'Nintendo Co. Ltd. (ADR)' },
-  'NOVO NORDISK': { ticker: 'NVO', name: 'Novo Nordisk A/S (ADR)' },
-  'ASTRAZENECA': { ticker: 'AZN', name: 'AstraZeneca PLC (ADR)' },
-  'NOVARTIS': { ticker: 'NVS', name: 'Novartis AG (ADR)' },
-  'ROCHE': { ticker: 'RHHBY', name: 'Roche Holding AG (ADR)' },
-  'SANOFI': { ticker: 'SNY', name: 'Sanofi SA (ADR)' },
-  'TOTALENERGIES': { ticker: 'TTE', name: 'TotalEnergies SE (ADR)' },
-  'SHELL': { ticker: 'SHEL', name: 'Shell PLC (ADR)' },
-  'BP': { ticker: 'BP', name: 'BP PLC (ADR)' },
-  'LVMH': { ticker: 'LVMUY', name: 'LVMH Moët Hennessy Louis Vuitton (ADR)' },
-  'HERMES': { ticker: 'HESAY', name: 'Hermès International (ADR)' },
-  'ALIBABA': { ticker: 'BABA', name: 'Alibaba Group Holding Ltd.' },
-  'TENCENT': { ticker: 'TCEHY', name: 'Tencent Holdings Ltd. (ADR)' },
+  'TAIWAN SEMICONDUCTOR MANUFACTURING COMPANY': { ticker: 'TSM', name: 'Taiwan Semiconductor Manufacturing Co.' },
+  'TEXAS INSTRUMENTS': { ticker: 'TXN', name: 'Texas Instruments Incorporated' },
+  'TI': { ticker: 'TXN', name: 'Texas Instruments Incorporated' },
+  'ANALOG DEVICES': { ticker: 'ADI', name: 'Analog Devices, Inc.' },
+  'ADI': { ticker: 'ADI', name: 'Analog Devices, Inc.' },
   'APPLE': { ticker: 'AAPL', name: 'Apple Inc.' },
-  'MICROSOFT': { ticker: 'MSFT', name: 'Microsoft Corp.' },
-  'NVIDIA': { ticker: 'NVDA', name: 'NVIDIA Corp.' },
+  'MICROSOFT': { ticker: 'MSFT', name: 'Microsoft Corporation' },
+  'AMAZON': { ticker: 'AMZN', name: 'Amazon.com, Inc.' },
   'GOOGLE': { ticker: 'GOOGL', name: 'Alphabet Inc. (Class A)' },
   'ALPHABET': { ticker: 'GOOGL', name: 'Alphabet Inc. (Class A)' },
-  'AMAZON': { ticker: 'AMZN', name: 'Amazon.com Inc.' },
-  'META': { ticker: 'META', name: 'Meta Platforms Inc.' },
-  'FACEBOOK': { ticker: 'META', name: 'Meta Platforms Inc.' },
-  'TESLA': { ticker: 'TSLA', name: 'Tesla Inc.' },
+  'META': { ticker: 'META', name: 'Meta Platforms, Inc.' },
+  'FACEBOOK': { ticker: 'META', name: 'Meta Platforms, Inc.' },
+  'TESLA': { ticker: 'TSLA', name: 'Tesla, Inc.' },
+  'SIEMENS': { ticker: 'SIEGY', name: 'Siemens AG' },
+  'CATERPILLAR': { ticker: 'CAT', name: 'Caterpillar Inc.' },
+  'HONEYWELL': { ticker: 'HON', name: 'Honeywell International Inc.' },
+  'ROCKWELL AUTOMATION': { ticker: 'ROK', name: 'Rockwell Automation, Inc.' },
+  'ROCKWELL': { ticker: 'ROK', name: 'Rockwell Automation, Inc.' },
+  'DEERE & COMPANY': { ticker: 'DE', name: 'Deere & Company' },
+  'DEERE': { ticker: 'DE', name: 'Deere & Company' },
+  'JOHN DEERE': { ticker: 'DE', name: 'Deere & Company' },
+  'EMERSON ELECTRIC': { ticker: 'EMR', name: 'Emerson Electric Co.' },
+  'EMERSON': { ticker: 'EMR', name: 'Emerson Electric Co.' },
+
+  // Other Common US Companies & Global ADRs
+  'ADIDAS': { ticker: 'ADDYY', name: 'Adidas AG' },
+  'BAYER': { ticker: 'BAYRY', name: 'Bayer AG' },
+  'BASF': { ticker: 'BASFY', name: 'BASF SE' },
+  'VOLKSWAGEN': { ticker: 'VWAGY', name: 'Volkswagen AG' },
+  'BMW': { ticker: 'BMWYY', name: 'Bayerische Motoren Werke AG' },
+  'MERCEDES': { ticker: 'MBGYY', name: 'Mercedes-Benz Group AG' },
+  'MERCEDES BENZ': { ticker: 'MBGYY', name: 'Mercedes-Benz Group AG' },
+  'SAP': { ticker: 'SAP', name: 'SAP SE' },
+  'SONY': { ticker: 'SONY', name: 'Sony Group Corp.' },
+  'TOYOTA': { ticker: 'TM', name: 'Toyota Motor Corp.' },
+  'HONDA': { ticker: 'HMC', name: 'Honda Motor Co.' },
+  'NINTENDO': { ticker: 'NTDOY', name: 'Nintendo Co. Ltd.' },
+  'NOVO NORDISK': { ticker: 'NVO', name: 'Novo Nordisk A/S' },
+  'ASTRAZENECA': { ticker: 'AZN', name: 'AstraZeneca PLC' },
+  'NOVARTIS': { ticker: 'NVS', name: 'Novartis AG' },
+  'ROCHE': { ticker: 'RHHBY', name: 'Roche Holding AG' },
+  'SANOFI': { ticker: 'SNY', name: 'Sanofi SA' },
+  'TOTALENERGIES': { ticker: 'TTE', name: 'TotalEnergies SE' },
+  'SHELL': { ticker: 'SHEL', name: 'Shell PLC' },
+  'BP': { ticker: 'BP', name: 'BP PLC' },
+  'LVMH': { ticker: 'LVMUY', name: 'LVMH Moët Hennessy Louis Vuitton' },
+  'HERMES': { ticker: 'HESAY', name: 'Hermès International' },
+  'ALIBABA': { ticker: 'BABA', name: 'Alibaba Group Holding Ltd.' },
+  'TENCENT': { ticker: 'TCEHY', name: 'Tencent Holdings Ltd.' },
   'BROADCOM': { ticker: 'AVGO', name: 'Broadcom Inc.' },
   'QUALCOMM': { ticker: 'QCOM', name: 'Qualcomm Inc.' },
   'INTEL': { ticker: 'INTC', name: 'Intel Corp.' },
@@ -147,18 +248,24 @@ function initStorage() {
     state.companyNames = {};
   }
 
-  // Load Tickers
+  // Load Tickers - Guarantee 20 predefined stocks for v3.0.0 or user-customized list from Settings
+  const universeVer = localStorage.getItem('quant_universe_version');
   const savedTickers = localStorage.getItem(STORAGE_KEYS.TICKERS);
-  if (savedTickers) {
+  if (universeVer !== 'v3.0.0') {
+    state.tickers = [...PREDEFINED_20_STOCKS];
+    localStorage.setItem(STORAGE_KEYS.TICKERS, JSON.stringify(state.tickers));
+    localStorage.setItem('quant_universe_version', 'v3.0.0');
+  } else if (savedTickers) {
     try {
       const parsed = JSON.parse(savedTickers);
-      state.tickers = Array.isArray(parsed) && parsed.length > 0 ? parsed : [...DEFAULT_TICKERS];
+      state.tickers = Array.isArray(parsed) && parsed.length > 0 ? parsed : [...PREDEFINED_20_STOCKS];
     } catch {
-      state.tickers = [...DEFAULT_TICKERS];
+      state.tickers = [...PREDEFINED_20_STOCKS];
     }
   } else {
-    state.tickers = [...DEFAULT_TICKERS];
+    state.tickers = [...PREDEFINED_20_STOCKS];
     localStorage.setItem(STORAGE_KEYS.TICKERS, JSON.stringify(state.tickers));
+    localStorage.setItem('quant_universe_version', 'v3.0.0');
   }
 }
 
@@ -179,6 +286,7 @@ function initUI() {
   updateSettingsBadge();
   updateRefreshDisplay();
   renderTickersGrid();
+  renderSettingsUniverseTable();
 }
 
 function updateSettingsBadge() {
@@ -204,6 +312,8 @@ function updateRefreshDisplay() {
   const display = document.getElementById('refresh-rate-display');
   const countdownEl = document.getElementById('refresh-countdown');
   const universeCount = document.getElementById('universe-count-badge');
+  const settingsCount = document.getElementById('settings-universe-count');
+  const settingsBadge = document.getElementById('settings-portfolio-count-badge');
 
   if (display) {
     if (state.refreshRate === 0) {
@@ -220,6 +330,8 @@ function updateRefreshDisplay() {
     }
   }
   if (universeCount) universeCount.textContent = `${state.tickers.length} Tickers`;
+  if (settingsCount) settingsCount.textContent = state.tickers.length.toString();
+  if (settingsBadge) settingsBadge.textContent = state.tickers.length.toString();
 }
 
 // ============================================================================
@@ -244,6 +356,7 @@ function initEventHandlers() {
       btnDash.className = 'tab-btn px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center space-x-2 text-slate-400 hover:text-slate-200';
       viewSettings.classList.remove('hidden');
       viewDash.classList.add('hidden');
+      renderSettingsUniverseTable();
     }
   }
 
@@ -252,6 +365,54 @@ function initEventHandlers() {
 
   const bannerLink = document.getElementById('banner-settings-link');
   if (bannerLink) bannerLink.addEventListener('click', () => switchTab('settings'));
+
+  // Settings Subcategories: Portfolio vs API Keys & Feeds
+  const subtabPortfolio = document.getElementById('settings-subtab-portfolio');
+  const subtabGeneral = document.getElementById('settings-subtab-general');
+  const sectionPortfolio = document.getElementById('settings-section-portfolio');
+  const sectionGeneral = document.getElementById('settings-section-general');
+
+  function switchSettingsSubtab(subtab) {
+    state.settingsSubtab = subtab;
+    if (subtab === 'portfolio') {
+      if (subtabPortfolio) subtabPortfolio.className = 'settings-subtab-btn px-4 py-1.5 rounded-md text-xs font-mono font-semibold transition-all flex items-center space-x-2 bg-slate-800 text-cyan-400 shadow-sm cursor-pointer';
+      if (subtabGeneral) subtabGeneral.className = 'settings-subtab-btn px-4 py-1.5 rounded-md text-xs font-mono font-semibold transition-all flex items-center space-x-1.5 text-slate-400 hover:text-slate-200 cursor-pointer';
+      if (sectionPortfolio) sectionPortfolio.classList.remove('hidden');
+      if (sectionGeneral) sectionGeneral.classList.add('hidden');
+      renderSettingsUniverseTable();
+    } else {
+      if (subtabGeneral) subtabGeneral.className = 'settings-subtab-btn px-4 py-1.5 rounded-md text-xs font-mono font-semibold transition-all flex items-center space-x-2 bg-slate-800 text-cyan-400 shadow-sm cursor-pointer';
+      if (subtabPortfolio) subtabPortfolio.className = 'settings-subtab-btn px-4 py-1.5 rounded-md text-xs font-mono font-semibold transition-all flex items-center space-x-1.5 text-slate-400 hover:text-slate-200 cursor-pointer';
+      if (sectionGeneral) sectionGeneral.classList.remove('hidden');
+      if (sectionPortfolio) sectionPortfolio.classList.add('hidden');
+    }
+  }
+
+  if (subtabPortfolio) subtabPortfolio.addEventListener('click', () => switchSettingsSubtab('portfolio'));
+  if (subtabGeneral) subtabGeneral.addEventListener('click', () => switchSettingsSubtab('general'));
+
+  // Quick jump from Dashboard universe card to Settings -> Portfolio subcategory
+  const btnGotoSettingsPortfolio = document.getElementById('btn-goto-settings-portfolio');
+  if (btnGotoSettingsPortfolio) {
+    btnGotoSettingsPortfolio.addEventListener('click', () => {
+      switchTab('settings');
+      switchSettingsSubtab('portfolio');
+    });
+  }
+
+  // Reset to Predefined 20 Stocks button in Settings -> Portfolio
+  const btnResetPredefined = document.getElementById('btn-reset-predefined-universe');
+  if (btnResetPredefined) {
+    btnResetPredefined.addEventListener('click', () => {
+      state.tickers = [...PREDEFINED_20_STOCKS];
+      localStorage.setItem(STORAGE_KEYS.TICKERS, JSON.stringify(state.tickers));
+      renderTickersGrid();
+      renderSettingsUniverseTable();
+      updateRefreshDisplay();
+      showToast('Reset universe to 20 predefined institutional stocks', 'success');
+      syncAllPrices(true);
+    });
+  }
 
   // Password Visibility Toggles
   document.querySelectorAll('.toggle-pw-btn').forEach(btn => {
@@ -298,15 +459,16 @@ function initEventHandlers() {
   const btnClear = document.getElementById('btn-clear-storage');
   if (btnClear) {
     btnClear.addEventListener('click', () => {
-      if (confirm('Are you sure you want to clear all stored API keys, refresh settings, and reset tickers to default?')) {
+      if (confirm('Are you sure you want to clear all stored API keys, refresh settings, and reset tickers to the 20 predefined stocks?')) {
         localStorage.clear();
         state.apiKeys.openRouter = '';
         state.apiKeys.newsData = '';
         state.refreshRate = DEFAULT_REFRESH_RATE;
-        state.tickers = [...DEFAULT_TICKERS];
+        state.tickers = [...PREDEFINED_20_STOCKS];
         state.companyNames = {};
         state.prices = {};
         localStorage.setItem(STORAGE_KEYS.TICKERS, JSON.stringify(state.tickers));
+        localStorage.setItem('quant_universe_version', 'v3.0.0');
 
         const inputOr = document.getElementById('input-openrouter-key');
         const inputNd = document.getElementById('input-newsdata-key');
@@ -320,7 +482,8 @@ function initEventHandlers() {
         updateRefreshDisplay();
         startPricePolling();
         renderTickersGrid();
-        showToast('Local storage cleared and defaults restored', 'info');
+        renderSettingsUniverseTable();
+        showToast('Local storage cleared and 20 predefined stocks restored', 'info');
         syncAllPrices(true);
       }
     });
@@ -332,27 +495,11 @@ function initEventHandlers() {
     btnTestApis.addEventListener('click', handleTestApis);
   }
 
-  // Add Ticker Form Submit Handler (with Company Name Resolution & Validation)
-  const formAddTicker = document.getElementById('form-add-ticker');
-  if (formAddTicker) {
-    formAddTicker.addEventListener('submit', handleAddTickerSubmit);
+  // Add Ticker Form Submit Handler in Settings -> Portfolio
+  const formAddTickerSettings = document.getElementById('form-add-ticker-settings');
+  if (formAddTickerSettings) {
+    formAddTickerSettings.addEventListener('submit', handleAddTickerSettingsSubmit);
   }
-
-  // Quick Preset Buttons
-  document.querySelectorAll('.preset-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const tickerStr = btn.getAttribute('data-tickers');
-      if (tickerStr) {
-        const list = tickerStr.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
-        state.tickers = [...new Set(list)];
-        localStorage.setItem(STORAGE_KEYS.TICKERS, JSON.stringify(state.tickers));
-        renderTickersGrid();
-        updateRefreshDisplay();
-        showToast(`Loaded preset universe (${state.tickers.length} tickers)`, 'info');
-        syncAllPrices(true);
-      }
-    });
-  });
 
   // Manual Sync Button
   const btnSync = document.getElementById('btn-manual-sync');
@@ -396,21 +543,22 @@ function initEventHandlers() {
 // TICKER RESOLUTION & VALIDATION ENGINE
 // ============================================================================
 /**
- * Handles submission of ticker/company name input:
- * 1. Checks OpenRouter LLM (if configured) or TwelveData / Reference dictionary
+ * Handles submission of ticker/company name input in Settings -> Portfolio:
+ * 1. Checks OpenRouter LLM (if configured) or Yahoo Finance / Reference dictionary
  * 2. Resolves company names to US stock/ADR tickers (e.g. Infineon -> IFNNY)
  * 3. Strictly rejects invalid / random tickers (e.g. ASDQWE)
- * 4. Verifies existence with TwelveData if key is configured
+ * 4. Verifies existence with Yahoo Finance
  */
-async function handleAddTickerSubmit(e) {
+async function handleAddTickerSettingsSubmit(e) {
   e.preventDefault();
-  const inputEl = document.getElementById('input-new-ticker');
-  const btnSubmit = document.getElementById('btn-add-ticker-submit');
-  const spinner = document.getElementById('add-ticker-spinner');
-  const plusIcon = document.getElementById('add-ticker-plus-icon');
-  const btnText = document.getElementById('add-ticker-btn-text');
-  const feedbackEl = document.getElementById('ticker-validation-feedback');
+  const inputEl = document.getElementById('input-new-ticker-settings');
+  const btnSubmit = document.getElementById('btn-add-ticker-settings-submit');
+  const spinner = document.getElementById('add-ticker-settings-spinner');
+  const plusIcon = document.getElementById('add-ticker-settings-plus');
+  const btnText = document.getElementById('add-ticker-settings-text');
+  const feedbackEl = document.getElementById('ticker-validation-feedback-settings');
 
+  if (!inputEl) return;
   const rawQuery = inputEl.value.trim();
   if (!rawQuery) return;
 
@@ -467,6 +615,7 @@ async function handleAddTickerSubmit(e) {
 
     inputEl.value = '';
     renderTickersGrid();
+    renderSettingsUniverseTable();
     updateRefreshDisplay();
 
     if (resolution.matchedFrom === 'company_name') {
@@ -478,13 +627,13 @@ async function handleAddTickerSubmit(e) {
             <svg class="w-4 h-4 text-emerald-400" fill="currentColor" viewBox="0 0 20 20">
               <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
             </svg>
-            <span>Company Name Resolved to US Ticker</span>
+            <span>Company Name Resolved & Added</span>
           </div>
           <p class="text-emerald-200/90">Successfully mapped <strong>"${escapeHtml(rawQuery)}"</strong> to US stock listing <strong>${ticker}</strong> (${escapeHtml(companyName)}).</p>
         `;
       }
     } else {
-      showToast(`Added ${ticker} (${companyName}) to universe`, 'success');
+      showToast(`Added ${ticker} (${companyName}) to portfolio universe`, 'success');
     }
 
     fetchSingleTickerPrice(ticker);
@@ -495,7 +644,7 @@ async function handleAddTickerSubmit(e) {
     if (btnSubmit) btnSubmit.disabled = false;
     if (spinner) spinner.classList.add('hidden');
     if (plusIcon) plusIcon.classList.remove('hidden');
-    if (btnText) btnText.textContent = 'Add / Resolve';
+    if (btnText) btnText.textContent = 'Add to Universe';
   }
 }
 
@@ -802,9 +951,11 @@ async function syncAllPrices(manual = false) {
       if (lastSyncEl) lastSyncEl.textContent = `${timeStr} (Live Synced)`;
       if (marketStatus) marketStatus.textContent = 'FEED: LIVE (YAHOO)';
       if (manual) showToast(`Real Yahoo quotes updated for ${successCount} assets`, 'success');
+      renderSettingsUniverseTable();
     } else {
       if (lastSyncEl) lastSyncEl.textContent = `${timeStr} (Sync Error)`;
       if (marketStatus) marketStatus.textContent = 'FEED: ERROR';
+      renderSettingsUniverseTable();
     }
   } catch (err) {
     console.error('Error syncing real prices:', err);
@@ -928,6 +1079,10 @@ function applyPriceErrorState(ticker, statusType, errorMessage) {
 /**
  * Render Stock Universe Cards
  */
+/**
+ * Render Stock Universe Cards on Main Dashboard
+ * Note: Removal of tickers is restricted to Settings -> Portfolio subcategory
+ */
 function renderTickersGrid() {
   const container = document.getElementById('tickers-grid');
   if (!container) return;
@@ -935,7 +1090,7 @@ function renderTickersGrid() {
   if (state.tickers.length === 0) {
     container.innerHTML = `
       <div class="col-span-full py-8 text-center text-slate-500 font-sans italic border border-dashed border-slate-800 rounded-xl">
-        No tickers in active universe. Add a ticker or company name above or click a preset.
+        No tickers in active universe. Manage portfolio in Settings &rarr; Portfolio.
       </div>
     `;
     return;
@@ -946,6 +1101,7 @@ function renderTickersGrid() {
     const hasValidPrice = data.status === 'ok' && data.price !== null && data.price > 0;
     const isPos = (data.change || 0) >= 0;
     const compName = getCompanyName(ticker);
+    const sector = getStockSector(ticker);
 
     let priceDisplayHtml = '';
     let changeDisplayHtml = '';
@@ -964,19 +1120,17 @@ function renderTickersGrid() {
     return `
       <div id="ticker-card-${ticker}" class="bg-[#0b1120] border border-slate-800 hover:border-slate-700 rounded-xl p-3.5 flex flex-col justify-between transition group shadow-sm">
         <div class="flex items-start justify-between">
-          <div>
+          <div class="min-w-0 flex-1">
             <div class="flex items-center space-x-1.5">
               <span class="font-mono font-bold text-sm text-white">${ticker}</span>
-              <span class="text-[10px] px-1 rounded bg-slate-800 text-cyan-400 font-mono">US</span>
+              <span class="text-[9px] px-1 rounded bg-slate-800 text-cyan-400 font-mono">US</span>
             </div>
-            <span class="text-[10px] text-slate-400 font-sans block truncate max-w-[140px]" title="${escapeHtml(compName)}">${escapeHtml(compName)}</span>
+            <span class="text-[10px] text-slate-400 font-sans block truncate max-w-[170px]" title="${escapeHtml(compName)}">${escapeHtml(compName)}</span>
           </div>
 
-          <button class="btn-remove-ticker text-slate-600 hover:text-rose-400 p-1 transition rounded hover:bg-slate-800/80 cursor-pointer" data-ticker="${ticker}" title="Remove ${ticker}">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400 font-mono max-w-[110px] truncate" title="${escapeHtml(sector)}">
+            ${escapeHtml(sector)}
+          </span>
         </div>
 
         <div class="mt-3 pt-2 border-t border-slate-800/60 flex items-baseline justify-between">
@@ -990,9 +1144,88 @@ function renderTickersGrid() {
       </div>
     `;
   }).join('');
+}
 
-  // Attach remove handlers
-  container.querySelectorAll('.btn-remove-ticker').forEach(btn => {
+/**
+ * Renders the Portfolio Universe Management Table in Settings -> Portfolio Subcategory
+ * Users can remove individual holdings here.
+ */
+function renderSettingsUniverseTable() {
+  const tbody = document.getElementById('settings-universe-table-body');
+  const countEl = document.getElementById('settings-universe-count');
+  const badgeEl = document.getElementById('settings-portfolio-count-badge');
+
+  if (countEl) countEl.textContent = state.tickers.length.toString();
+  if (badgeEl) badgeEl.textContent = state.tickers.length.toString();
+
+  if (!tbody) return;
+
+  if (state.tickers.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" class="px-4 py-8 text-center text-slate-500 font-sans italic">
+          No stocks in active universe. Add stocks above or click "Reset to Predefined 20 Stocks".
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = state.tickers.map((ticker, index) => {
+    const data = state.prices[ticker] || { status: 'fetching', price: null, change: null, changePercent: null };
+    const hasValidPrice = data.status === 'ok' && data.price !== null && data.price > 0;
+    const isPos = (data.change || 0) >= 0;
+    const compName = getCompanyName(ticker);
+    const sector = getStockSector(ticker);
+
+    let priceHtml = '';
+    if (hasValidPrice) {
+      priceHtml = `
+        <span class="font-bold text-white font-mono">$${data.price.toFixed(2)}</span>
+        <span class="text-[10px] ml-1.5 font-mono ${isPos ? 'text-emerald-400' : 'text-rose-400'}">
+          ${isPos ? '+' : ''}${data.changePercent.toFixed(2)}%
+        </span>
+      `;
+    } else if (data.status === 'error') {
+      priceHtml = `<span class="text-rose-400 text-xs font-mono">Error</span>`;
+    } else {
+      priceHtml = `<span class="text-slate-500 text-xs font-mono animate-pulse">Syncing...</span>`;
+    }
+
+    return `
+      <tr class="hover:bg-slate-900/40 transition">
+        <td class="px-4 py-3 text-slate-500 font-mono">${index + 1}</td>
+        <td class="px-4 py-3">
+          <div class="flex items-center space-x-1.5">
+            <span class="font-bold text-white font-mono">${ticker}</span>
+            <span class="text-[9px] px-1 rounded bg-slate-800 text-cyan-400 font-mono">US</span>
+          </div>
+        </td>
+        <td class="px-4 py-3 text-slate-300 font-sans font-medium max-w-[220px] truncate" title="${escapeHtml(compName)}">
+          ${escapeHtml(compName)}
+        </td>
+        <td class="px-4 py-3 text-slate-400 text-[11px] font-sans">
+          <span class="inline-block px-2 py-0.5 rounded bg-slate-800/80 border border-slate-700/60 text-slate-300">
+            ${escapeHtml(sector)}
+          </span>
+        </td>
+        <td class="px-4 py-3 text-right">
+          ${priceHtml}
+        </td>
+        <td class="px-4 py-3 text-right">
+          <button class="btn-remove-ticker-settings px-2.5 py-1 text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 border border-transparent hover:border-rose-900/60 rounded text-xs font-mono transition inline-flex items-center space-x-1 cursor-pointer" data-ticker="${ticker}" title="Remove ${ticker} from portfolio universe">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            <span class="hidden sm:inline">Remove</span>
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  // Attach remove event listeners in Settings table
+  tbody.querySelectorAll('.btn-remove-ticker-settings').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const ticker = btn.getAttribute('data-ticker');
@@ -1000,9 +1233,10 @@ function renderTickersGrid() {
         state.tickers = state.tickers.filter(t => t !== ticker);
         delete state.prices[ticker];
         localStorage.setItem(STORAGE_KEYS.TICKERS, JSON.stringify(state.tickers));
+        renderSettingsUniverseTable();
         renderTickersGrid();
         updateRefreshDisplay();
-        showToast(`Removed ${ticker} from universe`, 'info');
+        showToast(`Removed ${ticker} from portfolio universe`, 'info');
       }
     });
   });
@@ -1011,6 +1245,10 @@ function renderTickersGrid() {
 function getCompanyName(ticker) {
   if (state.companyNames[ticker]) {
     return state.companyNames[ticker];
+  }
+
+  if (PREDEFINED_STOCK_NAMES[ticker]) {
+    return PREDEFINED_STOCK_NAMES[ticker];
   }
 
   // Check in reference dictionary
@@ -1048,16 +1286,23 @@ function getCompanyName(ticker) {
     WMT: 'Walmart Inc.',
     MCD: 'McDonald\'s Corp.',
     COST: 'Costco Wholesale Corp.',
-    IFNNY: 'Infineon Technologies AG (ADR)',
-    SIEGY: 'Siemens AG (ADR)',
-    ADDYY: 'Adidas AG (ADR)',
-    VWAGY: 'Volkswagen AG (ADR)',
-    NVO: 'Novo Nordisk A/S (ADR)',
-    BABA: 'Alibaba Group Holding',
-    TM: 'Toyota Motor Corp.',
-    SONY: 'Sony Group Corp.',
+    IFNNY: 'Infineon Technologies AG',
+    NXPI: 'NXP Semiconductors N.V.',
+    STM: 'STMicroelectronics N.V.',
+    TXN: 'Texas Instruments Incorporated',
+    ADI: 'Analog Devices, Inc.',
+    SIEGY: 'Siemens AG',
+    CAT: 'Caterpillar Inc.',
+    HON: 'Honeywell International Inc.',
+    ROK: 'Rockwell Automation, Inc.',
+    DE: 'Deere & Company',
+    EMR: 'Emerson Electric Co.',
   };
   return names[ticker] || `${ticker} Equity`;
+}
+
+function getStockSector(ticker) {
+  return STOCK_SECTORS[ticker] || 'US Equity';
 }
 
 // ============================================================================
