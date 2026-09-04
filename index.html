@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Quantitative Portfolio Dashboard v3.0.1</title>
-  <meta name="description" content="Institutional quantitative portfolio screener, inverse volatility optimizer, and AI executive commentary dashboard (v3.0.1)" />
-  <meta property="og:title" content="Quantitative Portfolio Dashboard v3.0.1" />
-  <meta property="og:description" content="Institutional quantitative portfolio screener, inverse volatility optimizer, and AI executive commentary dashboard (v3.0.1)" />
+  <title>Quantitative Portfolio Dashboard v5.0.0</title>
+  <meta name="description" content="Institutional quantitative portfolio screener, inverse volatility optimizer, and AI executive commentary dashboard (v5.0.0)" />
+  <meta property="og:title" content="Quantitative Portfolio Dashboard v5.0.0" />
+  <meta property="og:description" content="Institutional quantitative portfolio screener, inverse volatility optimizer, and AI executive commentary dashboard (v5.0.0)" />
   <!-- Technical Indicators Library via CDN -->
   <script src="https://cdn.jsdelivr.net/npm/technicalindicators/dist/browser.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -88,7 +88,7 @@
         <!-- Version Indicator -->
         <div id="app-version-badge" class="flex items-center space-x-1.5 bg-gradient-to-r from-cyan-950 to-slate-900 border border-cyan-800/60 px-2.5 py-1 rounded text-xs font-mono text-cyan-300 shadow-sm">
           <span class="text-slate-400">VER:</span>
-          <span id="version-display" class="font-semibold text-cyan-400">v3.0.1</span>
+          <span id="version-display" class="font-semibold text-cyan-400">v4.0.0</span>
         </div>
       </div>
     </div>
@@ -152,14 +152,14 @@
         </div>
       </div>
 
-      <!-- Missing API Key Warning Banner if OpenRouter key missing -->
-      <div id="missing-key-banner" class="hidden bg-purple-950/40 border border-purple-800/80 rounded-xl p-4 text-purple-200 text-sm flex items-start space-x-3">
-        <svg class="w-5 h-5 text-purple-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <!-- Missing API Key Warning Banner if Finnhub key missing -->
+      <div id="missing-key-banner" class="hidden bg-amber-950/40 border border-amber-800/80 rounded-xl p-4 text-amber-200 text-sm flex items-start space-x-3">
+        <svg class="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
         <div class="flex-1">
-          <p class="font-semibold">OpenRouter API Key Recommended for Phase 3 AI Thesis</p>
-          <p class="text-xs text-purple-300/90 mt-0.5">Yahoo Finance real-time prices and quantitative optimization run keyless. Navigate to the <button id="banner-settings-link" class="underline font-semibold text-purple-300 hover:text-white">Settings Tab</button> to configure OpenRouter for AI executive commentary synthesis.</p>
+          <p class="font-semibold text-amber-300">Finnhub API Key Required for Real-Time Quotes & Screener</p>
+          <p class="text-xs text-amber-200/90 mt-0.5">Finnhub provides native CORS real-time quotes and historical stock candles. Navigate to the <button id="banner-settings-link" class="underline font-semibold text-cyan-300 hover:text-white cursor-pointer">Settings Tab</button> to configure your Finnhub API key (free at finnhub.io).</p>
         </div>
       </div>
 
@@ -259,7 +259,7 @@
                   <th class="py-3 px-4">Regime (SMA50 > 200)</th>
                   <th class="py-3 px-4">Momentum (MACD > 0)</th>
                   <th class="py-3 px-4">Value (RSI &lt; 70)</th>
-                  <th class="py-3 px-4 text-center">Final Signal</th>
+                  <th class="py-3 px-4 text-center">Gatekeeper Signal (Buy/Sell)</th>
                 </tr>
               </thead>
               <tbody id="screener-table-body" class="divide-y divide-slate-800/60">
@@ -487,21 +487,42 @@
         <div class="lg:col-span-2 space-y-6">
           <form id="form-settings" class="bg-[#0f172a] border border-slate-800 rounded-xl p-6 shadow-sm space-y-5">
 
-            <!-- Market Data Feed: Yahoo Finance (Keyless) -->
+            <!-- Market Data Feed: Finnhub API (Native CORS) -->
             <div class="p-4 bg-cyan-950/30 border border-cyan-800/60 rounded-xl space-y-2">
               <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-2">
                   <span class="w-2 h-2 rounded-full bg-emerald-400 terminal-pulse"></span>
-                  <span class="text-xs font-mono uppercase tracking-wider text-cyan-300 font-bold">Market Data Feed: Yahoo Finance</span>
+                  <span class="text-xs font-mono uppercase tracking-wider text-cyan-300 font-bold">Market Data Feed: Finnhub API</span>
                 </div>
-                <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-900/60 text-cyan-200 border border-cyan-700/50">Zero API Key Required</span>
+                <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-900/60 text-cyan-200 border border-cyan-700/50">Native CORS &bull; Direct Client-Side</span>
               </div>
               <p class="text-xs text-slate-300">
-                All real-time quotes, 2-year daily OHLCV historical candles, and asset validations are powered by Yahoo Finance chart endpoints. Technical indicators (SMA50, SMA200, MACD, RSI) are computed client-side via <span class="font-mono text-cyan-400">technicalindicators</span>.
+                All real-time quotes (<code class="text-cyan-400">/api/v1/quote</code>) and 2-year daily historical stock candles (<code class="text-cyan-400">/api/v1/stock/candle</code>) are fetched directly from Finnhub via native CORS. Technical indicators (SMA50, SMA200, MACD, RSI) are computed client-side via <span class="font-mono text-cyan-400">technicalindicators</span>.
               </p>
             </div>
 
-            <!-- 1. OpenRouter API Key -->
+            <!-- 1. Finnhub API Key -->
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between">
+                <label for="input-finnhub-key" class="text-xs font-mono uppercase tracking-wider text-slate-300 font-semibold flex items-center space-x-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                  <span>Finnhub API Key</span>
+                </label>
+                <a href="https://finnhub.io/register" target="_blank" rel="noopener noreferrer" class="text-[11px] text-cyan-400 hover:text-cyan-300 underline font-mono">Get free key at finnhub.io &rarr;</a>
+              </div>
+              <div class="relative">
+                <input id="input-finnhub-key" type="password" placeholder="c..." class="w-full px-3.5 py-2.5 bg-[#070b13] border border-slate-700 rounded-lg text-xs font-mono text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 pr-10" />
+                <button type="button" class="toggle-pw-btn absolute right-3 top-2.5 text-slate-500 hover:text-slate-300 cursor-pointer" data-target="input-finnhub-key">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                </button>
+              </div>
+              <p class="text-[11px] text-slate-500">Required for 30s live price polling and historical daily OHLCV candles for the quantitative screener. Free tier supports 60 calls/minute.</p>
+            </div>
+
+            <!-- 2. OpenRouter API Key -->
             <div class="space-y-1.5">
               <div class="flex items-center justify-between">
                 <label for="input-openrouter-key" class="text-xs font-mono uppercase tracking-wider text-slate-300 font-semibold flex items-center space-x-1.5">
@@ -522,7 +543,7 @@
               <p class="text-[11px] text-slate-500">Powers Phase 3 AI Executive Commentary using fast reasoning models (meta-llama/llama-3-8b-instruct) and intelligent ticker resolution.</p>
             </div>
 
-            <!-- 2. Newsdata API Key -->
+            <!-- 3. Newsdata API Key -->
             <div class="space-y-1.5">
               <div class="flex items-center justify-between">
                 <label for="input-newsdata-key" class="text-xs font-mono uppercase tracking-wider text-slate-300 font-semibold flex items-center space-x-1.5">
@@ -543,7 +564,7 @@
               <p class="text-[11px] text-slate-500">Fetches live financial news headlines for top 2 survivor holdings before prompt construction.</p>
             </div>
 
-            <!-- 3. Live Price Refresh Rate -->
+            <!-- 4. Live Price Refresh Rate -->
             <div class="space-y-1.5 pt-2 border-t border-slate-800">
               <label for="input-refresh-rate" class="text-xs font-mono uppercase tracking-wider text-slate-300 font-semibold block">
                 Live Price Refresh Rate (seconds)
@@ -620,10 +641,10 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2">
       <div class="flex items-center space-x-2">
         <span class="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>
-        <span>Quantitative Portfolio Dashboard &bull; Version 3.0.0</span>
+        <span>Quantitative Portfolio Dashboard &bull; Version 5.0.0</span>
       </div>
       <div class="text-slate-400">
-        Data sources: Yahoo Finance &bull; Newsdata.io &bull; OpenRouter AI
+        Data sources: Finnhub API &bull; Newsdata.io &bull; OpenRouter AI
       </div>
     </div>
   </footer>
