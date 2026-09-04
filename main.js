@@ -1,6 +1,6 @@
 /**
  * Quantitative SPA Portfolio Management Dashboard
- * Version: 6.0.3
+ * Version: 7.0.0
  * Architecture:
  * - Restricted Portfolio Universe: Predefined 20 Institutional Stocks (Tech, Semis, Industrials)
  * - Portfolio Management moved to Settings -> Portfolio subcategory (Dashboard modifications disabled)
@@ -11,14 +11,14 @@
  * - Real-time stock universe manager with auto-refresh (or 0 for manual-only) & price flash animations
  * - Client-side technical indicator screening (SMA50, SMA200, MACD, RSI) via technicalindicators library
  * - Inverse Volatility risk-parity portfolio optimization
- * - On-demand Holding Market Intelligence & News Feed with interactive asset selector dropdown
+ * - On-demand Holding Market Intelligence & News Feed using company names (e.g. NVIDIA, Infineon Technologies) for authentic headline matching
  * - OpenRouter LLM Executive Commentary & Investment Thesis generator
  */
 
 // ============================================================================
 // CONSTANTS & INITIAL STATE
 // ============================================================================
-const APP_VERSION = 'v6.0.3';
+const APP_VERSION = 'v7.0.0';
 
 // The 20 predefined stocks requested for the quantitative portfolio universe
 const PREDEFINED_20_STOCKS = [
@@ -2102,17 +2102,77 @@ function renderOptimizationError(errorMessage) {
 // ============================================================================
 // PHASE 3: REAL NEWSDATA & OPENROUTER AI COMMENTARY (ZERO DATA INVENTION)
 // ============================================================================
+
+/**
+ * Resolves an asset ticker to its primary institutional company name optimized for news queries.
+ * Strips formal corporate legal suffixes (e.g. Inc, Corp, AG, NV, Class A) to maximize real headline hits.
+ */
+function getNewsSearchQuery(ticker) {
+  if (!ticker) return '';
+  const rawName = getCompanyName(ticker);
+  if (!rawName || rawName === ticker) {
+    return ticker;
+  }
+
+  // Institutional universe high-precision brand mappings
+  const BRAND_OVERRIDES = {
+    'IFNNY': 'Infineon Technologies',
+    'NXPI': 'NXP Semiconductors',
+    'STM': 'STMicroelectronics',
+    'NVDA': 'NVIDIA',
+    'ASML': 'ASML',
+    'TSM': 'Taiwan Semiconductor',
+    'TXN': 'Texas Instruments',
+    'ADI': 'Analog Devices',
+    'AAPL': 'Apple',
+    'MSFT': 'Microsoft',
+    'AMZN': 'Amazon',
+    'GOOGL': 'Alphabet',
+    'META': 'Meta Platforms',
+    'TSLA': 'Tesla',
+    'SIEGY': 'Siemens',
+    'CAT': 'Caterpillar',
+    'HON': 'Honeywell',
+    'ROK': 'Rockwell Automation',
+    'DE': 'John Deere',
+    'EMR': 'Emerson Electric',
+  };
+
+  if (BRAND_OVERRIDES[ticker]) {
+    return BRAND_OVERRIDES[ticker];
+  }
+
+  // 1. Remove bracketed details like (Class A)
+  let s = rawName.replace(/\s*\([^)]*\)/g, '').trim();
+
+  // 2. Remove common legal suffixes and corporate designations
+  const pattern = /(?:\s*,\s*|\s+)(?:Holding\s+N\.?V\.?|N\.?V\.?|AG|Inc\.?|Corp\.?|Corporation|Co\.?|Ltd\.?|plc|PLC|LLC|Incorporated|Company)\.?$/i;
+  while (pattern.test(s)) {
+    s = s.replace(pattern, '').trim();
+  }
+
+  // 3. Clean trailing punctuation & ampersands
+  s = s.replace(/[\s,.\-&]+$/, '').trim();
+  return s || rawName || ticker;
+}
+
 async function fetchRealNewsHeadlines(ticker, apiKey) {
   if (!apiKey) {
     return {
       status: 'no_key',
       articles: [],
+      companyQuery: getNewsSearchQuery(ticker),
+      companyName: getCompanyName(ticker),
       error: 'Newsdata.io API key not configured in Settings',
     };
   }
 
+  const companyName = getCompanyName(ticker);
+  const companyQuery = getNewsSearchQuery(ticker);
+
   try {
-    const url = `https://newsdata.io/api/1/news?apikey=${apiKey}&q=${encodeURIComponent(ticker)}&language=en&category=business,technology`;
+    // Query Newsdata by company name rather than ticker symbol for authentic business coverage
+    const url = `https://newsdata.io/api/1/news?apikey=${apiKey}&q=${encodeURIComponent(companyQuery)}&language=en&category=business,technology`;
     const res = await fetch(url);
     const data = await res.json();
     if (data && data.results && Array.isArray(data.results) && data.results.length > 0) {
@@ -2124,25 +2184,33 @@ async function fetchRealNewsHeadlines(ticker, apiKey) {
           pubDate: article.pubDate || new Date().toISOString(),
           link: article.link || '#',
         })),
+        companyQuery,
+        companyName,
         error: null,
       };
     } else if (data && data.results && data.results.length === 0) {
       return {
         status: 'ok',
         articles: [],
-        error: 'No recent headlines found matching query',
+        companyQuery,
+        companyName,
+        error: `No recent business headlines found for company "${companyQuery}"`,
       };
     } else {
       return {
         status: 'error',
         articles: [],
-        error: (data && data.results && data.results.message) || 'Newsdata query returned no articles',
+        companyQuery,
+        companyName,
+        error: (data && data.results && data.results.message) || `Newsdata query for "${companyQuery}" returned no articles`,
       };
     }
   } catch (e) {
     return {
       status: 'error',
       articles: [],
+      companyQuery,
+      companyName,
       error: e.message || 'Newsdata network fetch failed',
     };
   }
@@ -2305,6 +2373,7 @@ async function fetchAndRenderHoldingNews(ticker, forceRefresh = false) {
   }
 
   const company = getCompanyName(ticker);
+  const companyQuery = getNewsSearchQuery(ticker);
 
   // Show loading indicator
   display.innerHTML = `
@@ -2313,7 +2382,7 @@ async function fetchAndRenderHoldingNews(ticker, forceRefresh = false) {
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
       </svg>
-      <span>Streaming live Newsdata.io business &amp; tech headlines for ${escapeHtml(ticker)} (${escapeHtml(company)})...</span>
+      <span>Streaming live Newsdata.io business &amp; tech headlines for ${escapeHtml(company)} (query: "${escapeHtml(companyQuery)}")...</span>
     </div>
   `;
 
@@ -2326,7 +2395,7 @@ async function fetchAndRenderHoldingNews(ticker, forceRefresh = false) {
       <div class="p-4 bg-[#070b13] border border-rose-900/40 rounded-xl text-xs font-mono text-rose-300 space-y-2">
         <div class="flex items-center space-x-2">
           <span class="w-2 h-2 rounded-full bg-rose-500"></span>
-          <span class="font-bold">Failed to stream headlines for ${escapeHtml(ticker)}</span>
+          <span class="font-bold">Failed to stream headlines for ${escapeHtml(company)} (${escapeHtml(ticker)})</span>
         </div>
         <p class="text-slate-400 text-[11px] font-sans">${escapeHtml(err.message || 'Network fetch failed')}</p>
         <button onclick="window.fetchAndRenderHoldingNews('${escapeHtml(ticker)}', true)" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded text-[11px] font-mono border border-slate-700 cursor-pointer">
@@ -2346,24 +2415,25 @@ function renderHoldingNewsArticles(ticker, newsResult) {
 
   const isOk = newsResult.status === 'ok' && newsResult.articles && newsResult.articles.length > 0;
   const company = getCompanyName(ticker);
+  const companyQuery = newsResult.companyQuery || getNewsSearchQuery(ticker);
 
   if (!isOk) {
-    const errorMsg = newsResult.error || (newsResult.articles && newsResult.articles.length === 0 ? 'No recent news articles found for this ticker' : 'Live news query returned no results');
+    const errorMsg = newsResult.error || (newsResult.articles && newsResult.articles.length === 0 ? `No recent news articles found for ${company}` : 'Live news query returned no results');
     display.innerHTML = `
       <div class="p-4 bg-[#070b13] border border-slate-800 rounded-xl space-y-2">
         <div class="flex items-center justify-between border-b border-slate-800/80 pb-2">
           <div class="flex items-center space-x-2">
             <span class="w-2 h-2 rounded-full bg-amber-400"></span>
-            <span class="font-mono font-bold text-white text-xs">${escapeHtml(ticker)}</span>
-            <span class="text-xs text-slate-400 font-sans">&bull; ${escapeHtml(company)}</span>
+            <span class="text-xs text-white font-medium font-sans">${escapeHtml(company)}</span>
+            <span class="font-mono text-slate-400 text-xs">(${escapeHtml(ticker)})</span>
           </div>
-          <span class="text-[10px] font-mono text-slate-500">Newsdata.io Live Feed</span>
+          <span class="text-[10px] font-mono text-slate-500">Newsdata.io Live Feed (${escapeHtml(companyQuery)})</span>
         </div>
         <div class="text-xs font-mono text-amber-400/90 py-1">
           ${escapeHtml(errorMsg)}
         </div>
         <p class="text-[11px] text-slate-500 font-sans">
-          Zero simulated data policy: If no recent headlines exist in Newsdata.io for this specific ticker, simulated news is never invented.
+          Zero simulated data policy: If no recent headlines exist in Newsdata.io for ${escapeHtml(company)} (searched by company: "${escapeHtml(companyQuery)}"), simulated news is never invented.
         </p>
       </div>
     `;
@@ -2375,11 +2445,11 @@ function renderHoldingNewsArticles(ticker, newsResult) {
       <div class="flex items-center justify-between px-1 text-xs">
         <div class="flex items-center space-x-2">
           <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-          <span class="font-mono font-bold text-white">${escapeHtml(ticker)}</span>
-          <span class="text-slate-400 font-sans hidden sm:inline">&bull; ${escapeHtml(company)}</span>
+          <span class="text-xs font-semibold text-white font-sans">${escapeHtml(company)}</span>
+          <span class="font-mono text-slate-400 text-xs hidden sm:inline">(${escapeHtml(ticker)})</span>
           <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-950 text-cyan-300 border border-cyan-800/50">${newsResult.articles.length} Verified Headlines</span>
         </div>
-        <span class="text-[10px] font-mono text-slate-500">Newsdata.io Feed</span>
+        <span class="text-[10px] font-mono text-slate-500">Query: "${escapeHtml(companyQuery)}"</span>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -2396,7 +2466,7 @@ function renderHoldingNewsArticles(ticker, newsResult) {
             </div>
 
             <div class="pt-2 border-t border-slate-800/60 flex items-center justify-between text-[10px] font-mono">
-              <span class="text-slate-500">${escapeHtml(ticker)}</span>
+              <span class="text-slate-400">${escapeHtml(companyQuery)}</span>
               ${article.link && article.link !== '#' ? `
                 <a href="${escapeHtml(article.link)}" target="_blank" rel="noopener noreferrer" class="text-cyan-400 hover:text-cyan-300 flex items-center space-x-1 hover:underline">
                   <span>Read Article</span>
@@ -2677,10 +2747,11 @@ async function handleTestApis() {
       });
     }
 
-    // 3. Test Newsdata.io Feed
+    // 3. Test Newsdata.io Feed (using company name)
     if (ndKey) {
       try {
-        const res = await fetch(`https://newsdata.io/api/1/news?apikey=${ndKey}&q=AAPL&language=en`);
+        const testCompany = 'Apple';
+        const res = await fetch(`https://newsdata.io/api/1/news?apikey=${ndKey}&q=${encodeURIComponent(testCompany)}&language=en&category=business,technology`);
         if (res.ok) {
           const newsJson = await res.json().catch(() => null);
           const count = newsJson?.results?.length || 0;
@@ -2688,7 +2759,7 @@ async function handleTestApis() {
           serviceStatuses.push({
             service: 'Newsdata.io Intelligence Feed',
             status: 'ok',
-            message: `Connected successfully. Retrieved ${count} real business articles.`,
+            message: `Connected successfully. Retrieved ${count} real business articles for company "${testCompany}".`,
           });
         } else {
           const errText = await res.text();
