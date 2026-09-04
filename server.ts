@@ -8,11 +8,11 @@ const __dirname = path.dirname(__filename);
 const DIST_DIR = path.join(__dirname, 'dist');
 const PORT = 3000;
 
-const MIME_TYPES = {
-  '.html': 'text/html',
-  '.js': 'application/javascript',
-  '.css': 'text/css',
-  '.json': 'application/json',
+const MIME_TYPES: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.svg': 'image/svg+xml',
@@ -41,7 +41,7 @@ const server = http.createServer(async (req, res) => {
       'https://query1.finance.yahoo.com',
     ];
 
-    let lastError = null;
+    let lastError: Error | null = null;
     for (const host of hosts) {
       try {
         const targetUrl = `${host}${subPath}`;
@@ -64,13 +64,13 @@ const server = http.createServer(async (req, res) => {
         } else {
           lastError = new Error(`Upstream returned HTTP ${upstream.status}`);
         }
-      } catch (err) {
+      } catch (err: any) {
         lastError = err;
       }
     }
 
     res.statusCode = 502;
-    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.end(JSON.stringify({
       error: `Failed to proxy Yahoo Finance: ${lastError ? lastError.message : 'Unknown error'}`
     }));
@@ -81,9 +81,9 @@ const server = http.createServer(async (req, res) => {
   let reqPath = req.url ? req.url.split('?')[0] : '/';
   if (reqPath === '/' || reqPath === '') reqPath = '/index.html';
 
-  let filePath = path.join(DIST_DIR, reqPath);
+  const filePath = path.join(DIST_DIR, reqPath);
 
-  // Security check
+  // Security check: stay within DIST_DIR
   if (!filePath.startsWith(DIST_DIR)) {
     res.statusCode = 403;
     res.end('Forbidden');
@@ -101,7 +101,7 @@ const server = http.createServer(async (req, res) => {
           return;
         }
         res.statusCode = 200;
-        res.setHeader('Content-Type', 'text/html');
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.end(content);
       });
       return;

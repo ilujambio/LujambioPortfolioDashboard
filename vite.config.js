@@ -21,8 +21,8 @@ function yahooFinanceProxyPlugin() {
     const subPath = req.url.replace(/^\/api\/yahoo/, '');
 
     const hosts = [
-      'https://query1.finance.yahoo.com',
       'https://query2.finance.yahoo.com',
+      'https://query1.finance.yahoo.com',
     ];
 
     let lastError = null;
@@ -31,9 +31,10 @@ function yahooFinanceProxyPlugin() {
         const targetUrl = `${host}${subPath}`;
         const upstream = await fetch(targetUrl, {
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
             'Accept': 'application/json, text/plain, */*',
             'Accept-Language': 'en-US,en;q=0.9',
+            'Referer': 'https://finance.yahoo.com/',
           },
         });
 

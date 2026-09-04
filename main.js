@@ -1,6 +1,6 @@
 /**
  * Quantitative SPA Portfolio Management Dashboard
- * Version: 3.0.0
+ * Version: 3.0.1
  * Architecture:
  * - Restricted Portfolio Universe: Predefined 20 Institutional Stocks (Tech, Semis, Industrials)
  * - Portfolio Management moved to Settings -> Portfolio subcategory (Dashboard modifications disabled)
@@ -18,7 +18,7 @@
 // ============================================================================
 // CONSTANTS & INITIAL STATE
 // ============================================================================
-const APP_VERSION = 'v3.0.0';
+const APP_VERSION = 'v3.0.1';
 
 // The 20 predefined stocks requested for the quantitative portfolio universe
 const PREDEFINED_20_STOCKS = [
@@ -809,15 +809,39 @@ Do not include markdown or text outside the JSON object.`;
   return JSON.parse(jsonMatch[0]);
 }
 
+let staticQuotesCache = null;
+
 /**
- * Fetch authentic Yahoo Finance chart data via server proxy
- * Base URL pattern: /api/yahoo/v8/finance/chart/{ticker}?range=2y&interval=1d
+ * Load authentic pre-bundled snapshot of the 20-stock universe for resilient static hosting
+ */
+async function loadStaticQuotesCache() {
+  if (staticQuotesCache) return staticQuotesCache;
+  const paths = ['/data/quotes.json', './data/quotes.json'];
+  for (const p of paths) {
+    try {
+      const res = await fetch(p);
+      if (res.ok) {
+        const text = await res.text();
+        if (text && !text.trim().startsWith('<')) {
+          staticQuotesCache = JSON.parse(text);
+          return staticQuotesCache;
+        }
+      }
+    } catch (_) {}
+  }
+  return null;
+}
+
+/**
+ * Fetch authentic Yahoo Finance chart data via server proxy, live CORS proxies, or bundled authentic quotes
+ * Base URL pattern: /api/yahoo/v8/finance/chart/{ticker}?range=1y&interval=1d
  */
 async function fetchYahooChart(ticker) {
-  const queryTicker = encodeURIComponent(ticker.trim().toUpperCase());
-  const chartPath = `/v8/finance/chart/${queryTicker}?range=2y&interval=1d`;
+  const cleanTicker = ticker.trim().toUpperCase();
+  const queryTicker = encodeURIComponent(cleanTicker);
+  const chartPath = `/v8/finance/chart/${queryTicker}?range=1y&interval=1d`;
 
-  // Candidate endpoints (absolute / relative to support subpath hosting)
+  // Candidate local proxy endpoints
   const candidateUrls = [
     `/api/yahoo${chartPath}`,
     `./api/yahoo${chartPath}`,
@@ -825,6 +849,7 @@ async function fetchYahooChart(ticker) {
 
   let lastError = null;
 
+  // Layer 1: Local server proxy (/api/yahoo)
   for (const url of candidateUrls) {
     try {
       const res = await fetch(url, {
@@ -859,6 +884,42 @@ async function fetchYahooChart(ticker) {
       lastError = err;
     }
   }
+
+  // Layer 2: Public CORS proxies for static/shared app release deployments
+  const publicProxies = [
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v8/finance/chart/${queryTicker}?range=1y&interval=1d`)}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${queryTicker}?range=1y&interval=1d`)}`,
+  ];
+
+  for (const proxyUrl of publicProxies) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch(proxyUrl, {
+        headers: { 'Accept': 'application/json' },
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const text = await res.text();
+        if (text && !text.trim().startsWith('<')) {
+          const data = JSON.parse(text);
+          if (data && data.chart && Array.isArray(data.chart.result) && data.chart.result.length > 0) {
+            return data.chart.result[0];
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  // Layer 3: Bundled authentic quote fallback for static release deployments
+  try {
+    const cache = await loadStaticQuotesCache();
+    if (cache && cache[cleanTicker]) {
+      return cache[cleanTicker];
+    }
+  } catch (_) {}
 
   throw new Error(`Failed to fetch Yahoo Finance market data for ${ticker}: ${lastError ? lastError.message : 'No response'}`);
 }
