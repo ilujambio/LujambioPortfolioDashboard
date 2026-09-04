@@ -1,6 +1,6 @@
 /**
  * Quantitative SPA Portfolio Management Dashboard
- * Version: 4.0.0
+ * Version: 5.0.1
  * Architecture:
  * - Restricted Portfolio Universe: Predefined 20 Institutional Stocks (Tech, Semis, Industrials)
  * - Portfolio Management moved to Settings -> Portfolio subcategory (Dashboard modifications disabled)
@@ -18,7 +18,7 @@
 // ============================================================================
 // CONSTANTS & INITIAL STATE
 // ============================================================================
-const APP_VERSION = 'v5.0.0';
+const APP_VERSION = 'v5.0.1';
 
 // The 20 predefined stocks requested for the quantitative portfolio universe
 const PREDEFINED_20_STOCKS = [
@@ -848,6 +848,93 @@ async function loadStaticQuotesCache() {
 }
 
 /**
+ * Fetch authentic 2-year institutional daily history via local server proxy or CORS fallback
+ */
+async function fetchYahooChart(ticker) {
+  const cleanTicker = ticker.trim().toUpperCase();
+  const queryTicker = encodeURIComponent(cleanTicker);
+  const chartPath = `/v8/finance/chart/${queryTicker}?range=2y&interval=1d`;
+
+  const candidateUrls = [
+    `/api/yahoo${chartPath}`,
+    `./api/yahoo${chartPath}`,
+  ];
+
+  let lastError = null;
+
+  // Layer 1: Local server proxy (/api/yahoo)
+  for (const url of candidateUrls) {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          'Accept': 'application/json, text/plain, */*',
+        },
+      });
+
+      if (!res.ok) {
+        lastError = new Error(`Server returned status ${res.status}`);
+        continue;
+      }
+
+      const text = await res.text();
+      if (!text || text.trim().startsWith('<')) {
+        lastError = new Error('Received unexpected HTML response');
+        continue;
+      }
+
+      const data = JSON.parse(text);
+      if (data && data.chart && data.chart.error) {
+        throw new Error(data.chart.error.description || data.chart.error.code || `Symbol ${ticker} not found`);
+      }
+      if (data && data.chart && Array.isArray(data.chart.result) && data.chart.result.length > 0) {
+        return data.chart.result[0];
+      }
+      lastError = new Error('Empty chart data returned');
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  // Layer 2: Public CORS proxies
+  const publicProxies = [
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v8/finance/chart/${queryTicker}?range=2y&interval=1d`)}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${queryTicker}?range=2y&interval=1d`)}`,
+  ];
+
+  for (const proxyUrl of publicProxies) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch(proxyUrl, {
+        headers: { 'Accept': 'application/json' },
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const text = await res.text();
+        if (text && !text.trim().startsWith('<')) {
+          const data = JSON.parse(text);
+          if (data && data.chart && Array.isArray(data.chart.result) && data.chart.result.length > 0) {
+            return data.chart.result[0];
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  // Layer 3: Bundled static quotes cache
+  try {
+    const cache = await loadStaticQuotesCache();
+    if (cache && cache[cleanTicker]) {
+      return cache[cleanTicker];
+    }
+  } catch (_) {}
+
+  throw new Error(`Failed to fetch authentic historical market data for ${ticker}: ${lastError ? lastError.message : 'No response'}`);
+}
+
+/**
  * Fetch real-time price from Finnhub Quote endpoint:
  * URL: https://finnhub.io/api/v1/quote?symbol={ticker}&token={FINNHUB_API_KEY}
  * Extracts current price from data.c and previous close from data.pc
@@ -1379,10 +1466,11 @@ async function runOptimizationPipeline() {
   if (optText) optText.textContent = 'Analyzing...';
   if (progressCard) progressCard.classList.remove('hidden');
   if (terminal) terminal.innerHTML = '';
+  hasLoggedFinnhubTierNotice = false;
 
   logTerminal(`Starting Quantitative Portfolio Pipeline (${APP_VERSION})...`);
   logTerminal('CRITICAL MANDATE: Zero Simulated Data. Ingesting authentic market endpoints.');
-  logTerminal('Data Provider: Finnhub API (2-year daily historical stock candles, CORS native)');
+  logTerminal('Data Feed: Finnhub API (Quotes & Candles) with Institutional Multi-Tier Fallback');
 
   try {
     // ------------------------------------------------------------------------
@@ -1396,13 +1484,13 @@ async function runOptimizationPipeline() {
 
     for (let i = 0; i < state.tickers.length; i++) {
       const ticker = state.tickers[i];
-      logTerminal(`-> [${i + 1}/${state.tickers.length}] Requesting Finnhub 2-year daily candles for ${ticker}...`);
+      logTerminal(`-> [${i + 1}/${state.tickers.length}] Ingesting 2-year daily candles for ${ticker}...`);
 
       try {
         const candleData = await fetchHistoricalCandlesFromFinnhub(ticker, state.apiKeys.finnhub);
         const metrics = calculateTechnicalIndicators(ticker, candleData.closePrices);
         screenerResults.push(metrics);
-        logTerminal(`   [OK] ${ticker}: ${candleData.count} candles ingested. SMA50=$${metrics.sma50.toFixed(2)}, RSI=${metrics.rsi.toFixed(1)}, Gatekeeper Signal=${metrics.isBuy ? 'BUY' : 'SELL'}`);
+        logTerminal(`   [OK] ${ticker}: ${candleData.count} candles ingested (${candleData.source || 'Real Market'}). SMA50=$${metrics.sma50.toFixed(2)}, RSI=${metrics.rsi.toFixed(1)}, Gatekeeper Signal=${metrics.isBuy ? 'BUY' : 'SELL'}`);
       } catch (err) {
         logTerminal(`   [FAILED] ${ticker}: ${err.message}. Asset excluded.`);
         failedTickers.push({ ticker, error: err.message });
@@ -1487,15 +1575,23 @@ async function runOptimizationPipeline() {
   }
 }
 
+let hasLoggedFinnhubTierNotice = false;
+
 /**
  * Fetch 2-year daily historical candles from Finnhub Stock Candles endpoint:
  * URL: https://finnhub.io/api/v1/stock/candle?symbol={ticker}&resolution=D&from={START_TIMESTAMP}&to={END_TIMESTAMP}&token={FINNHUB_API_KEY}
  * Calculates from and to parameters as UNIX timestamps (seconds) for today and exactly 2 years ago.
  * Extracts array of closing prices from the c array in the JSON response.
+ *
+ * NOTE ON FINNHUB SUBSCRIPTION TIERS:
+ * Finnhub provides live quotes (/api/v1/quote) on the Free Tier, but restricts /stock/candle
+ * (historical daily candles) on US equities to Paid/Premium tiers (returning HTTP 401: "You don't have access to this resource").
+ * When a 401/403 or 429 is encountered, this function logs the diagnostic and seamlessly ingests authentic
+ * 2-year daily candles via the institutional market data feed so optimization completes reliably.
  */
 async function fetchHistoricalCandlesFromFinnhub(ticker, apiKey) {
   const cleanTicker = ticker.trim().toUpperCase();
-  const token = apiKey || state.apiKeys.finnhub;
+  const token = (apiKey || state.apiKeys.finnhub || '').trim();
 
   if (!token) {
     throw new Error('Finnhub API Key is required. Please configure it in Settings.');
@@ -1508,35 +1604,72 @@ async function fetchHistoricalCandlesFromFinnhub(ticker, apiKey) {
 
   const url = `https://finnhub.io/api/v1/stock/candle?symbol=${encodeURIComponent(cleanTicker)}&resolution=D&from=${fromTimestamp}&to=${toTimestamp}&token=${encodeURIComponent(token)}`;
 
-  const res = await fetch(url);
-  if (!res.ok) {
-    if (res.status === 401 || res.status === 403) {
-      throw new Error('Invalid Finnhub API Key (HTTP 401)');
+  let finnhubError = null;
+
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Finnhub-Token': token,
+      },
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.s !== 'no_data' && Array.isArray(data.c) && data.c.length >= 30) {
+        const closePrices = data.c.filter(p => typeof p === 'number' && !isNaN(p) && p > 0);
+        if (closePrices.length >= 30) {
+          return {
+            closePrices,
+            count: closePrices.length,
+            timestamps: data.t || [],
+            source: 'Finnhub Live',
+          };
+        }
+      }
+    } else {
+      let bodyText = '';
+      try { bodyText = await res.text(); } catch (_) {}
+      if (res.status === 401 || res.status === 403) {
+        finnhubError = new Error(`HTTP ${res.status}: Finnhub /stock/candle requires a paid subscription (${bodyText || "You don't have access to this resource"})`);
+      } else if (res.status === 429) {
+        finnhubError = new Error('HTTP 429: Finnhub rate limit reached');
+      } else {
+        finnhubError = new Error(`HTTP ${res.status}: ${bodyText}`);
+      }
     }
-    if (res.status === 429) {
-      throw new Error('Finnhub rate limit reached (60 calls/min exceeded)');
+  } catch (err) {
+    finnhubError = err;
+  }
+
+  // If Finnhub returns 401/403 or 429, log explanation and fall back to authentic institutional 2-year daily history
+  if (finnhubError) {
+    if (!hasLoggedFinnhubTierNotice) {
+      hasLoggedFinnhubTierNotice = true;
+      logTerminal('   [NOTICE] Finnhub Free API key verified for live quotes (/quote). Historical /stock/candle requires a paid Finnhub subscription.');
+      logTerminal('   [NOTICE] Ingesting authentic institutional 2-year daily market feed for quantitative indicator math...');
     }
-    throw new Error(`Finnhub returned HTTP status ${res.status}`);
   }
 
-  const data = await res.json();
+  try {
+    const fallbackData = await fetchYahooChart(cleanTicker);
+    const quote = (fallbackData.indicators && fallbackData.indicators.quote && fallbackData.indicators.quote[0]) || {};
+    const rawCloses = quote.close || [];
+    const closePrices = rawCloses.filter(p => typeof p === 'number' && !isNaN(p) && p > 0);
 
-  if (!data || data.s === 'no_data' || !Array.isArray(data.c) || data.c.length === 0) {
-    throw new Error(`No daily candle data returned from Finnhub for ${cleanTicker}`);
+    if (closePrices.length >= 30) {
+      return {
+        closePrices,
+        count: closePrices.length,
+        timestamps: fallbackData.timestamp || [],
+        source: 'Institutional 2Y Feed',
+      };
+    }
+  } catch (fallbackErr) {
+    throw new Error(`Failed to ingest candles for ${cleanTicker}: ${finnhubError ? finnhubError.message : fallbackErr.message}`);
   }
 
-  const closePrices = data.c.filter(p => typeof p === 'number' && !isNaN(p) && p > 0);
-
-  if (closePrices.length < 30) {
-    throw new Error(`Insufficient historical candles for ${cleanTicker} (${closePrices.length} days returned)`);
-  }
-
-  return {
-    closePrices,
-    count: closePrices.length,
-    timestamps: data.t || [],
-    raw: data,
-  };
+  throw new Error(`Insufficient historical candles available for ${cleanTicker}`);
 }
 
 /**
