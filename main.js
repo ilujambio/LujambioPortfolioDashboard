@@ -1,6 +1,6 @@
 /**
  * Quantitative SPA Portfolio Management Dashboard
- * Version: 6.0.1
+ * Version: 6.0.3
  * Architecture:
  * - Restricted Portfolio Universe: Predefined 20 Institutional Stocks (Tech, Semis, Industrials)
  * - Portfolio Management moved to Settings -> Portfolio subcategory (Dashboard modifications disabled)
@@ -18,7 +18,7 @@
 // ============================================================================
 // CONSTANTS & INITIAL STATE
 // ============================================================================
-const APP_VERSION = 'v6.0.2';
+const APP_VERSION = 'v6.0.3';
 
 // The 20 predefined stocks requested for the quantitative portfolio universe
 const PREDEFINED_20_STOCKS = [
@@ -2458,7 +2458,7 @@ async function generateAICommentary(analysisPayload, top2, newsMap, apiKey) {
     task: 'Quantitative Portfolio Executive Briefing',
     portfolio_allocation: portfolioSummary,
     top_holdings_news: newsMap,
-    instructions: 'Write a concise, exactly 2-paragraph executive commentary explaining the quantitative regime, inverse-volatility risk distribution, and how recent market context intersects with the top holdings.',
+    instructions: 'Write a concise, exactly 2-paragraph executive commentary explaining the quantitative regime, inverse-volatility risk distribution, and how recent market context intersects with the top holdings. MANDATORY DIRECTIVE: Go directly into the summary analysis in the very first sentence. Never output introductory filler or conversational preambles like "Here is the summary", "Here is your executive memorandum", "Sure", "Certainly", or "Below is...".',
   };
 
   try {
@@ -2480,11 +2480,11 @@ async function generateAICommentary(analysisPayload, top2, newsMap, apiKey) {
         messages: [
           {
             role: 'system',
-            content: 'You are a Senior Quantitative Portfolio Manager and Chief Investment Officer. Provide crisp, institutional, two-paragraph executive commentary based strictly on the provided real technical screening and risk parity data. Do not make up fake metrics.',
+            content: 'You are a Senior Quantitative Portfolio Manager and Chief Investment Officer. Provide crisp, institutional, two-paragraph executive commentary based strictly on the provided real technical screening and risk parity data. Do not make up fake metrics. STRICT RULE: Output ONLY the two executive commentary paragraphs directly. Never begin with conversational preambles or lead-in phrases such as "Here is the summary", "Here is your executive commentary", "Sure,", "Certainly,", or "Below is the memorandum". Begin immediately with the analytical commentary.',
           },
           {
             role: 'user',
-            content: `Here is our quantitative portfolio optimization state and intelligence payload:\n\n${JSON.stringify(promptPayload, null, 2)}\n\nPlease deliver your concise 2-paragraph executive memorandum.`,
+            content: `Here is our quantitative portfolio optimization state and intelligence payload:\n\n${JSON.stringify(promptPayload, null, 2)}\n\nDeliver your concise 2-paragraph executive memorandum now. Go directly into the summary analysis. Do not include any introductory phrase such as "Here is the summary". Start directly with paragraph 1.`,
           },
         ],
         temperature: 0.3,
@@ -2538,11 +2538,29 @@ function renderThesisError(errorMessage) {
   `;
 }
 
+/**
+ * Strips conversational opening lines or preambles like "Here is the summary:",
+ * "Here is your executive memorandum:", "Sure, here is...", etc., ensuring the
+ * output starts immediately with the executive commentary.
+ */
+function stripAICommentaryPreamble(text) {
+  if (!text) return '';
+  let cleaned = text.trim();
+  // Strip conversational conversational openers like "Certainly!", "Sure,", etc. if at start of string
+  cleaned = cleaned.replace(/^(?:sure|certainly|absolutely|of course)[!.,\s]*/i, '');
+  // Strip "Here is / are ... :" or "Below is / are ... :" or ending with newline/colon
+  cleaned = cleaned.replace(/^(?:here|below)\s+(?:is|are)\s+[^:\n.]*(?:[:.]|\n)\s*/i, '');
+  // Strip standalone header lines like "Executive Summary:" or "**Executive Summary**:"
+  cleaned = cleaned.replace(/^(?:\*{1,2})?(?:executive\s+memorandum|executive\s+summary|portfolio\s+commentary|summary)(?:\*{1,2})?[:\s]*\n*/i, '');
+  return cleaned.trim();
+}
+
 function renderFormattedThesis(rawText) {
   const container = document.getElementById('thesis-text');
   if (!container) return;
 
-  const paragraphs = rawText.split('\n\n').map(p => p.trim()).filter(Boolean);
+  const directContent = stripAICommentaryPreamble(rawText);
+  const paragraphs = directContent.split('\n\n').map(p => p.trim()).filter(Boolean);
   container.innerHTML = paragraphs.map(p => `<p class="leading-relaxed text-slate-200">${escapeHtml(p)}</p>`).join('');
 }
 
