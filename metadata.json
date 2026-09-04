@@ -1,6 +1,6 @@
 {
   "name": "Quantitative Portfolio Dashboard",
-  "description": "Institutional quantitative portfolio screener, inverse volatility optimizer, and AI executive commentary dashboard (v5.0.2)",
+  "description": "Institutional quantitative portfolio screener, inverse volatility optimizer, and AI executive commentary dashboard (v6.0.1)",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

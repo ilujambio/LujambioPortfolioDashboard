@@ -1,6 +1,6 @@
 /**
  * Quantitative SPA Portfolio Management Dashboard
- * Version: 5.0.2
+ * Version: 6.0.1
  * Architecture:
  * - Restricted Portfolio Universe: Predefined 20 Institutional Stocks (Tech, Semis, Industrials)
  * - Portfolio Management moved to Settings -> Portfolio subcategory (Dashboard modifications disabled)
@@ -11,14 +11,14 @@
  * - Real-time stock universe manager with auto-refresh (or 0 for manual-only) & price flash animations
  * - Client-side technical indicator screening (SMA50, SMA200, MACD, RSI) via technicalindicators library
  * - Inverse Volatility risk-parity portfolio optimization
- * - Authentic Newsdata.io headline ingestion for top holdings
+ * - On-demand Holding Market Intelligence & News Feed with interactive asset selector dropdown
  * - OpenRouter LLM Executive Commentary & Investment Thesis generator
  */
 
 // ============================================================================
 // CONSTANTS & INITIAL STATE
 // ============================================================================
-const APP_VERSION = 'v5.0.2';
+const APP_VERSION = 'v6.0.1';
 
 // The 20 predefined stocks requested for the quantitative portfolio universe
 const PREDEFINED_20_STOCKS = [
@@ -119,6 +119,8 @@ const state = {
   isSyncingPrices: false,
   isOptimizing: false,
   analysisData: null,
+  selectedNewsTicker: '',
+  cachedNews: {}, // { [ticker]: { status: 'ok'|'error'|'no_key', articles: [...] } }
   apiKeys: {
     finnhub: '',
     openRouter: '',
@@ -292,6 +294,7 @@ function initUI() {
   updateRefreshDisplay();
   renderTickersGrid();
   renderSettingsUniverseTable();
+  initHoldingNewsSection();
 }
 
 function updateSettingsBadge() {
@@ -464,6 +467,11 @@ function initEventHandlers() {
 
       showToast('Settings saved successfully (Finnhub API configured)', 'success');
       syncAllPrices(true);
+
+      // Refresh news for selected holding if news key was changed or added
+      if (state.selectedNewsTicker) {
+        fetchAndRenderHoldingNews(state.selectedNewsTicker, true);
+      }
     });
   }
 
@@ -480,6 +488,8 @@ function initEventHandlers() {
         state.tickers = [...PREDEFINED_20_STOCKS];
         state.companyNames = {};
         state.prices = {};
+        state.selectedNewsTicker = '';
+        state.cachedNews = {};
         localStorage.setItem(STORAGE_KEYS.TICKERS, JSON.stringify(state.tickers));
         localStorage.setItem('quant_universe_version', 'v4.0.0');
 
@@ -498,6 +508,7 @@ function initEventHandlers() {
         startPricePolling();
         renderTickersGrid();
         renderSettingsUniverseTable();
+        populateNewsDropdown();
         showToast('Local storage cleared and 20 predefined stocks restored', 'info');
         syncAllPrices(true);
       }
@@ -1366,6 +1377,9 @@ function renderSettingsUniverseTable() {
       }
     });
   });
+
+  // Keep news asset dropdown in sync with active portfolio universe
+  populateNewsDropdown();
 }
 
 function getCompanyName(ticker) {
@@ -1538,28 +1552,34 @@ async function runOptimizationPipeline() {
     renderOptimizationResults(analysisPayload);
 
     // ------------------------------------------------------------------------
-    // PHASE 3: NEWS INGESTION & OPENROUTER AI EXECUTIVE COMMENTARY
+    // PHASE 3: OPENROUTER AI EXECUTIVE COMMENTARY & INVESTMENT THESIS
     // ------------------------------------------------------------------------
     highlightPipelineStep(3);
-    logTerminal('[PHASE 3] Ingesting real news headlines for top holdings...');
+    logTerminal('[PHASE 3] Synthesizing Institutional Executive Memorandum via OpenRouter AI...');
 
     const top2 = [...optimizedData].sort((a, b) => b.weight - a.weight).slice(0, 2);
-    logTerminal(`Top holdings selected: ${top2.map(t => `${t.ticker} (${(t.weight * 100).toFixed(1)}%)`).join(', ')}`);
+    logTerminal(`Top risk-parity allocations: ${top2.map(t => `${t.ticker} (${(t.weight * 100).toFixed(1)}%)`).join(', ')}`);
 
-    const newsMap = {};
-    for (const holding of top2) {
-      logTerminal(`-> Querying Newsdata API for ${holding.ticker}...`);
-      const headlines = await fetchRealNewsHeadlines(holding.ticker, state.apiKeys.newsData);
-      newsMap[holding.ticker] = headlines;
+    // Ingest news context for the selected holding if cached or available
+    const activeHolding = state.selectedNewsTicker || (state.tickers && state.tickers[0]);
+    let newsMap = {};
+    if (activeHolding && state.cachedNews[activeHolding]) {
+      newsMap[activeHolding] = state.cachedNews[activeHolding];
+    } else if (activeHolding && state.apiKeys.newsData) {
+      try {
+        logTerminal(`-> Ingesting headline context for selected holding (${activeHolding})...`);
+        const headlines = await fetchRealNewsHeadlines(activeHolding, state.apiKeys.newsData);
+        state.cachedNews[activeHolding] = headlines;
+        newsMap[activeHolding] = headlines;
+        renderHoldingNewsArticles(activeHolding, headlines);
+      } catch (_) {}
     }
-
-    renderNewsCards(newsMap);
 
     logTerminal('-> Generating Institutional Investment Thesis via OpenRouter...');
     await generateAICommentary(analysisPayload, top2, newsMap, state.apiKeys.openRouter);
 
     logTerminal('[SUCCESS] Quantitative Analysis & Real-Data Pipeline completed successfully!');
-    showToast('Optimization pipeline completed with real market data', 'success');
+    showToast('Optimization pipeline completed successfully', 'success');
 
   } catch (err) {
     console.error('Pipeline error:', err);
@@ -2123,48 +2143,273 @@ async function fetchRealNewsHeadlines(ticker, apiKey) {
   }
 }
 
-function renderNewsCards(newsMap) {
-  const container = document.getElementById('news-headlines-list');
-  if (!container) return;
+// ============================================================================
+// PHASE 3: HOLDING INTELLIGENCE & ON-DEMAND NEWSDATA FEED
+// ============================================================================
 
-  const entries = Object.entries(newsMap);
-  if (entries.length === 0) {
-    container.innerHTML = `<div class="text-slate-500 italic p-3">No headlines requested.</div>`;
+/**
+ * Initializes the Phase 3 Holding News Dropdown and Action Listeners
+ */
+function initHoldingNewsSection() {
+  populateNewsDropdown();
+
+  const select = document.getElementById('select-news-holding');
+  if (select && !select.dataset.listenerAttached) {
+    select.dataset.listenerAttached = 'true';
+    select.addEventListener('change', (e) => {
+      const ticker = e.target.value;
+      state.selectedNewsTicker = ticker;
+      if (ticker) {
+        fetchAndRenderHoldingNews(ticker, false);
+      }
+    });
+  }
+
+  const btnFetch = document.getElementById('btn-fetch-holding-news');
+  if (btnFetch && !btnFetch.dataset.listenerAttached) {
+    btnFetch.dataset.listenerAttached = 'true';
+    btnFetch.addEventListener('click', () => {
+      const selectElem = document.getElementById('select-news-holding');
+      const ticker = selectElem ? selectElem.value : state.selectedNewsTicker;
+      if (ticker) {
+        fetchAndRenderHoldingNews(ticker, true);
+      } else {
+        showToast('Please select a holding from the dropdown', 'warning');
+      }
+    });
+  }
+
+  // If a ticker is already selected and key is present, fetch initial news
+  if (state.selectedNewsTicker && state.apiKeys.newsData) {
+    fetchAndRenderHoldingNews(state.selectedNewsTicker, false);
+  } else if (state.selectedNewsTicker) {
+    renderHoldingNewsPlaceholder(state.selectedNewsTicker);
+  }
+}
+
+/**
+ * Dynamically populates the Holding News Dropdown with the active portfolio universe
+ */
+function populateNewsDropdown() {
+  const select = document.getElementById('select-news-holding');
+  if (!select) return;
+
+  const currentVal = select.value || state.selectedNewsTicker;
+  select.innerHTML = '';
+
+  if (!state.tickers || state.tickers.length === 0) {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = 'No assets in portfolio universe';
+    select.appendChild(opt);
+    state.selectedNewsTicker = '';
+    renderHoldingNewsPlaceholder('');
     return;
   }
 
-  container.innerHTML = entries.map(([ticker, newsResult]) => {
-    const isOk = newsResult.status === 'ok' && newsResult.articles && newsResult.articles.length > 0;
+  state.tickers.forEach((ticker) => {
+    const opt = document.createElement('option');
+    opt.value = ticker;
+    const compName = getCompanyName(ticker);
+    // e.g., "NVDA — NVIDIA Corporation"
+    opt.textContent = `${ticker} — ${compName}`;
+    select.appendChild(opt);
+  });
 
-    return `
-      <div class="bg-[#070b13] border border-slate-800 rounded-xl p-3.5 space-y-2">
-        <div class="flex items-center justify-between border-b border-slate-800/80 pb-1.5">
-          <div class="flex items-center space-x-1.5">
-            <span class="w-1.5 h-1.5 rounded-full ${isOk ? 'bg-cyan-400' : 'bg-amber-400'}"></span>
-            <span class="font-mono font-bold text-white">${ticker}</span>
+  // Preserve previous selection if still in portfolio, else default to first
+  if (currentVal && state.tickers.includes(currentVal)) {
+    select.value = currentVal;
+    state.selectedNewsTicker = currentVal;
+  } else {
+    select.value = state.tickers[0];
+    state.selectedNewsTicker = state.tickers[0];
+  }
+}
+
+/**
+ * Renders status placeholder when Newsdata key is unconfigured or news hasn't been fetched
+ */
+function renderHoldingNewsPlaceholder(ticker) {
+  const display = document.getElementById('holding-news-display');
+  if (!display) return;
+
+  if (!ticker) {
+    display.innerHTML = `
+      <div class="p-4 bg-[#070b13] border border-slate-800 rounded-xl text-slate-500 italic text-xs">
+        No active holdings in portfolio. Add tickers in Settings &rarr; Portfolio to stream market intelligence.
+      </div>
+    `;
+    return;
+  }
+
+  const hasKey = Boolean(state.apiKeys.newsData);
+  const company = getCompanyName(ticker);
+
+  if (!hasKey) {
+    display.innerHTML = `
+      <div class="p-4 bg-[#070b13] border border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        <div class="space-y-1">
+          <div class="flex items-center space-x-2 text-slate-300 font-mono font-bold">
+            <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+            <span>Asset Selected: ${escapeHtml(ticker)} (${escapeHtml(company)})</span>
           </div>
-          <span class="text-[10px] font-mono text-slate-500">Live News Feed</span>
+          <p class="text-slate-400 text-[11px] font-sans">
+            Ready to stream market headlines. Configure your <strong>Newsdata.io API Key</strong> in <em>Settings &rarr; API Keys &amp; Feeds</em> to query live business &amp; tech intelligence on-demand. (Zero simulated news is strictly enforced).
+          </p>
         </div>
-        <div class="space-y-2">
-          ${isOk ? newsResult.articles.map(a => `
-            <div class="text-xs">
-              <p class="text-slate-300 font-sans leading-snug font-medium line-clamp-2">${escapeHtml(a.title)}</p>
-              <div class="flex items-center space-x-2 text-[10px] text-slate-500 font-mono mt-0.5">
-                <span>${escapeHtml(a.source_id)}</span>
-                <span>&bull;</span>
-                <span>${escapeHtml(a.pubDate)}</span>
-              </div>
-            </div>
-          `).join('') : `
-            <div class="text-xs font-mono text-amber-400/90 py-2">
-              ${escapeHtml(newsResult.error || 'No live news data available (Never inventing fake news)')}
-            </div>
-          `}
+        <button onclick="document.getElementById('nav-btn-settings').click(); document.getElementById('settings-subtab-general').click();" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-slate-700 rounded-lg font-mono text-[11px] transition self-start sm:self-auto cursor-pointer whitespace-nowrap">
+          Open Settings &rarr;
+        </button>
+      </div>
+    `;
+  } else {
+    display.innerHTML = `
+      <div class="p-4 bg-[#070b13] border border-slate-800 rounded-xl flex items-center justify-between text-xs">
+        <div class="flex items-center space-x-2">
+          <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+          <span class="text-slate-300 font-mono font-bold">${escapeHtml(ticker)} (${escapeHtml(company)}):</span>
+          <span class="text-slate-400">Ready. Click <strong>Fetch News</strong> or select any asset to stream headlines.</span>
         </div>
       </div>
     `;
-  }).join('');
+  }
 }
+
+/**
+ * Fetches and displays real news headlines on-demand for a chosen holding
+ * Decoupled from full optimization analysis.
+ */
+async function fetchAndRenderHoldingNews(ticker, forceRefresh = false) {
+  if (!ticker) return;
+  state.selectedNewsTicker = ticker;
+
+  const display = document.getElementById('holding-news-display');
+  if (!display) return;
+
+  const apiKey = (state.apiKeys.newsData || '').trim();
+
+  if (!apiKey) {
+    renderHoldingNewsPlaceholder(ticker);
+    return;
+  }
+
+  // If already cached and not forcing refresh, render cached headlines immediately
+  if (!forceRefresh && state.cachedNews[ticker]) {
+    renderHoldingNewsArticles(ticker, state.cachedNews[ticker]);
+    return;
+  }
+
+  const company = getCompanyName(ticker);
+
+  // Show loading indicator
+  display.innerHTML = `
+    <div class="p-5 bg-[#070b13] border border-slate-800 rounded-xl flex items-center justify-center space-x-3 text-xs font-mono text-cyan-400">
+      <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      <span>Streaming live Newsdata.io business &amp; tech headlines for ${escapeHtml(ticker)} (${escapeHtml(company)})...</span>
+    </div>
+  `;
+
+  try {
+    const result = await fetchRealNewsHeadlines(ticker, apiKey);
+    state.cachedNews[ticker] = result;
+    renderHoldingNewsArticles(ticker, result);
+  } catch (err) {
+    display.innerHTML = `
+      <div class="p-4 bg-[#070b13] border border-rose-900/40 rounded-xl text-xs font-mono text-rose-300 space-y-2">
+        <div class="flex items-center space-x-2">
+          <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+          <span class="font-bold">Failed to stream headlines for ${escapeHtml(ticker)}</span>
+        </div>
+        <p class="text-slate-400 text-[11px] font-sans">${escapeHtml(err.message || 'Network fetch failed')}</p>
+        <button onclick="window.fetchAndRenderHoldingNews('${escapeHtml(ticker)}', true)" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded text-[11px] font-mono border border-slate-700 cursor-pointer">
+          Retry Fetch
+        </button>
+      </div>
+    `;
+  }
+}
+
+/**
+ * Renders the fetched news articles for the selected holding into a responsive card layout
+ */
+function renderHoldingNewsArticles(ticker, newsResult) {
+  const display = document.getElementById('holding-news-display');
+  if (!display) return;
+
+  const isOk = newsResult.status === 'ok' && newsResult.articles && newsResult.articles.length > 0;
+  const company = getCompanyName(ticker);
+
+  if (!isOk) {
+    const errorMsg = newsResult.error || (newsResult.articles && newsResult.articles.length === 0 ? 'No recent news articles found for this ticker' : 'Live news query returned no results');
+    display.innerHTML = `
+      <div class="p-4 bg-[#070b13] border border-slate-800 rounded-xl space-y-2">
+        <div class="flex items-center justify-between border-b border-slate-800/80 pb-2">
+          <div class="flex items-center space-x-2">
+            <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+            <span class="font-mono font-bold text-white text-xs">${escapeHtml(ticker)}</span>
+            <span class="text-xs text-slate-400 font-sans">&bull; ${escapeHtml(company)}</span>
+          </div>
+          <span class="text-[10px] font-mono text-slate-500">Newsdata.io Live Feed</span>
+        </div>
+        <div class="text-xs font-mono text-amber-400/90 py-1">
+          ${escapeHtml(errorMsg)}
+        </div>
+        <p class="text-[11px] text-slate-500 font-sans">
+          Zero simulated data policy: If no recent headlines exist in Newsdata.io for this specific ticker, simulated news is never invented.
+        </p>
+      </div>
+    `;
+    return;
+  }
+
+  display.innerHTML = `
+    <div class="space-y-2.5">
+      <div class="flex items-center justify-between px-1 text-xs">
+        <div class="flex items-center space-x-2">
+          <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+          <span class="font-mono font-bold text-white">${escapeHtml(ticker)}</span>
+          <span class="text-slate-400 font-sans hidden sm:inline">&bull; ${escapeHtml(company)}</span>
+          <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-950 text-cyan-300 border border-cyan-800/50">${newsResult.articles.length} Verified Headlines</span>
+        </div>
+        <span class="text-[10px] font-mono text-slate-500">Newsdata.io Feed</span>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        ${newsResult.articles.map(article => `
+          <div class="bg-[#070b13] border border-slate-800 hover:border-slate-700 rounded-xl p-3.5 flex flex-col justify-between space-y-2.5 transition-all group">
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between text-[10px] text-slate-500 font-mono">
+                <span class="text-cyan-400/90 font-medium truncate max-w-[130px]">${escapeHtml(article.source_id || 'News')}</span>
+                <span>${escapeHtml(article.pubDate ? new Date(article.pubDate).toLocaleDateString() : 'Recent')}</span>
+              </div>
+              <h5 class="text-xs text-slate-200 group-hover:text-cyan-300 font-sans font-medium leading-snug line-clamp-3 transition">
+                ${escapeHtml(article.title)}
+              </h5>
+            </div>
+
+            <div class="pt-2 border-t border-slate-800/60 flex items-center justify-between text-[10px] font-mono">
+              <span class="text-slate-500">${escapeHtml(ticker)}</span>
+              ${article.link && article.link !== '#' ? `
+                <a href="${escapeHtml(article.link)}" target="_blank" rel="noopener noreferrer" class="text-cyan-400 hover:text-cyan-300 flex items-center space-x-1 hover:underline">
+                  <span>Read Article</span>
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </a>
+              ` : '<span class="text-slate-600">No link</span>'}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+// Expose to window for inline onclick handlers
+window.fetchAndRenderHoldingNews = fetchAndRenderHoldingNews;
 
 /**
  * Generate 2-paragraph Executive Commentary using OpenRouter API
