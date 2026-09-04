@@ -18,7 +18,7 @@
 // ============================================================================
 // CONSTANTS & INITIAL STATE
 // ============================================================================
-const APP_VERSION = 'v6.0.1';
+const APP_VERSION = 'v6.0.2';
 
 // The 20 predefined stocks requested for the quantitative portfolio universe
 const PREDEFINED_20_STOCKS = [
@@ -804,7 +804,12 @@ Do not include markdown or text outside the JSON object.`;
       'X-Title': 'Quantitative SPA Dashboard',
     },
     body: JSON.stringify({
-      model: 'meta-llama/llama-3-8b-instruct',
+      model: 'meta-llama/llama-3.1-8b-instruct',
+      models: [
+        'meta-llama/llama-3.1-8b-instruct',
+        'meta-llama/llama-3.3-70b-instruct',
+        'meta-llama/llama-3.2-3b-instruct',
+      ],
       messages: [
         {
           role: 'system',
@@ -2466,7 +2471,12 @@ async function generateAICommentary(analysisPayload, top2, newsMap, apiKey) {
         'X-Title': 'Quantitative SPA Dashboard',
       },
       body: JSON.stringify({
-        model: 'meta-llama/llama-3-8b-instruct',
+        model: 'meta-llama/llama-3.1-8b-instruct',
+        models: [
+          'meta-llama/llama-3.1-8b-instruct',
+          'meta-llama/llama-3.3-70b-instruct',
+          'meta-llama/llama-3.2-3b-instruct',
+        ],
         messages: [
           {
             role: 'system',
@@ -2488,13 +2498,20 @@ async function generateAICommentary(analysisPayload, top2, newsMap, apiKey) {
       if (content) {
         renderFormattedThesis(content);
         if (copyBtn) copyBtn.classList.remove('hidden');
-        if (modelTag) modelTag.textContent = json.model || 'meta-llama/llama-3-8b-instruct';
+        if (modelTag) modelTag.textContent = json.model || 'meta-llama/llama-3.1-8b-instruct';
         return;
       }
     }
 
     const errText = await response.text();
-    throw new Error(`OpenRouter error (${response.status}): ${errText}`);
+    let parsedErr = '';
+    try {
+      const errJson = JSON.parse(errText);
+      parsedErr = errJson?.error?.message || errText;
+    } catch {
+      parsedErr = errText;
+    }
+    throw new Error(`OpenRouter error (${response.status}): ${parsedErr}`);
   } catch (err) {
     console.error('OpenRouter generation failed:', err);
     renderThesisError(`OpenRouter LLM generation failed: ${err.message}. (Never fabricating simulated AI commentary).`);
@@ -2540,61 +2557,191 @@ async function handleTestApis() {
   const orKey = orInput ? orInput.value.trim() : (state.apiKeys.openRouter || '');
   const ndKey = ndInput ? ndInput.value.trim() : (state.apiKeys.newsData || '');
 
-  showToast('Testing API connections...', 'info');
+  const btnTest = document.getElementById('btn-test-apis');
+  const textTest = document.getElementById('text-test-apis');
+  const iconTest = document.getElementById('icon-test-apis');
 
-  let results = [];
+  if (btnTest) btnTest.disabled = true;
+  if (textTest) textTest.textContent = 'Testing Feeds...';
+  if (iconTest) iconTest.classList.add('animate-spin');
 
-  // Test Finnhub Market Feed
-  if (fhKey) {
-    try {
-      const quote = await fetchFinnhubQuote('AAPL', fhKey);
-      if (typeof quote?.c === 'number' && quote.c > 0) {
-        results.push(`Finnhub: OK (AAPL $${quote.c.toFixed(2)})`);
-      } else {
-        results.push('Finnhub: Empty Quote');
+  showToast('Testing live API connections...', 'info');
+
+  const results = [];
+  const serviceStatuses = [];
+
+  try {
+    // 1. Test Finnhub Market Feed
+    if (fhKey) {
+      try {
+        const quote = await fetchFinnhubQuote('AAPL', fhKey);
+        if (typeof quote?.c === 'number' && quote.c > 0) {
+          results.push(`Finnhub: OK (AAPL $${quote.c.toFixed(2)})`);
+          serviceStatuses.push({
+            service: 'Finnhub Market Data',
+            status: 'ok',
+            message: `Connected successfully. Live AAPL quote verified at $${quote.c.toFixed(2)}.`,
+          });
+        } else {
+          results.push('Finnhub: Empty Quote');
+          serviceStatuses.push({
+            service: 'Finnhub Market Data',
+            status: 'error',
+            message: 'API connected but returned empty quote data.',
+          });
+        }
+      } catch (err) {
+        results.push(`Finnhub: Error (${err.message})`);
+        serviceStatuses.push({
+          service: 'Finnhub Market Data',
+          status: 'error',
+          message: err.message || 'Authentication error',
+        });
       }
-    } catch (err) {
-      results.push(`Finnhub: Error (${err.message})`);
-    }
-  } else {
-    results.push('Finnhub: Key Required');
-  }
-
-  // Test OpenRouter
-  if (orKey) {
-    try {
-      const res = await fetch('https://openrouter.ai/api/v1/auth/key', {
-        headers: { 'Authorization': `Bearer ${orKey}` },
+    } else {
+      results.push('Finnhub: Key Required');
+      serviceStatuses.push({
+        service: 'Finnhub Market Data',
+        status: 'unconfigured',
+        message: 'Finnhub API key is required for real-time market data polling.',
       });
-      if (res.ok) {
-        results.push('OpenRouter: OK');
-      } else {
-        results.push(`OpenRouter: Error ${res.status}`);
-      }
-    } catch {
-      results.push('OpenRouter: Network Error');
     }
-  } else {
-    results.push('OpenRouter: Optional (Not Set)');
-  }
 
-  // Test Newsdata
-  if (ndKey) {
-    try {
-      const res = await fetch(`https://newsdata.io/api/1/news?apikey=${ndKey}&q=AAPL&language=en`);
-      if (res.ok) {
-        results.push('Newsdata: OK');
-      } else {
-        results.push(`Newsdata: Error ${res.status}`);
+    // 2. Test OpenRouter LLM Feed
+    if (orKey) {
+      try {
+        const res = await fetch('https://openrouter.ai/api/v1/auth/key', {
+          headers: {
+            'Authorization': `Bearer ${orKey}`,
+            'HTTP-Referer': window.location.origin,
+            'X-Title': 'Quantitative SPA Dashboard',
+          },
+        });
+
+        if (res.ok) {
+          const authData = await res.json().catch(() => null);
+          const keyLabel = authData?.data?.label ? ` (${authData.data.label})` : '';
+          const keyLimit = authData?.data?.limit != null ? ` [Limit: $${authData.data.limit}]` : '';
+          results.push(`OpenRouter: OK${keyLabel}`);
+          serviceStatuses.push({
+            service: 'OpenRouter AI Feed',
+            status: 'ok',
+            message: `Key valid & authorized${keyLabel}${keyLimit}. Default model: meta-llama/llama-3.1-8b-instruct.`,
+          });
+        } else {
+          const errText = await res.text();
+          let errMsg = `HTTP ${res.status}`;
+          try {
+            const errJson = JSON.parse(errText);
+            if (errJson?.error?.message) errMsg = errJson.error.message;
+          } catch (_) {}
+          results.push(`OpenRouter: Error (${errMsg})`);
+          serviceStatuses.push({
+            service: 'OpenRouter AI Feed',
+            status: 'error',
+            message: `Authentication failed (${errMsg}). Verify your API key at openrouter.ai/keys.`,
+          });
+        }
+      } catch (err) {
+        results.push(`OpenRouter: Network Error (${err.message})`);
+        serviceStatuses.push({
+          service: 'OpenRouter AI Feed',
+          status: 'error',
+          message: `Network error connecting to openrouter.ai: ${err.message}`,
+        });
       }
-    } catch {
-      results.push('Newsdata: Network Error');
+    } else {
+      results.push('OpenRouter: Optional (Not Set)');
+      serviceStatuses.push({
+        service: 'OpenRouter AI Feed',
+        status: 'unconfigured',
+        message: 'OpenRouter key not configured. (Phase 3 AI Executive commentary will be bypassed).',
+      });
     }
-  } else {
-    results.push('Newsdata: Optional (Not Set)');
-  }
 
-  showToast(results.join(' | '), 'info', 7000);
+    // 3. Test Newsdata.io Feed
+    if (ndKey) {
+      try {
+        const res = await fetch(`https://newsdata.io/api/1/news?apikey=${ndKey}&q=AAPL&language=en`);
+        if (res.ok) {
+          const newsJson = await res.json().catch(() => null);
+          const count = newsJson?.results?.length || 0;
+          results.push(`Newsdata: OK (${count} articles)`);
+          serviceStatuses.push({
+            service: 'Newsdata.io Intelligence Feed',
+            status: 'ok',
+            message: `Connected successfully. Retrieved ${count} real business articles.`,
+          });
+        } else {
+          const errText = await res.text();
+          let errMsg = `HTTP ${res.status}`;
+          try {
+            const errJson = JSON.parse(errText);
+            if (errJson?.results?.message) errMsg = errJson.results.message;
+          } catch (_) {}
+          results.push(`Newsdata: Error (${errMsg})`);
+          serviceStatuses.push({
+            service: 'Newsdata.io Intelligence Feed',
+            status: 'error',
+            message: `Newsdata error (${errMsg}).`,
+          });
+        }
+      } catch (err) {
+        results.push(`Newsdata: Network Error (${err.message})`);
+        serviceStatuses.push({
+          service: 'Newsdata.io Intelligence Feed',
+          status: 'error',
+          message: `Network fetch error: ${err.message}`,
+        });
+      }
+    } else {
+      results.push('Newsdata: Optional (Not Set)');
+      serviceStatuses.push({
+        service: 'Newsdata.io Intelligence Feed',
+        status: 'unconfigured',
+        message: 'Newsdata.io key not configured. (Holding intelligence feed will be bypassed).',
+      });
+    }
+
+    // Render results into Diagnostics Panel
+    const panel = document.getElementById('api-test-results-panel');
+    const list = document.getElementById('api-test-results-list');
+    const timestamp = document.getElementById('api-test-timestamp');
+
+    if (panel && list) {
+      panel.classList.remove('hidden');
+      if (timestamp) {
+        timestamp.textContent = `Tested at ${new Date().toLocaleTimeString()}`;
+      }
+      list.innerHTML = serviceStatuses.map(s => {
+        const badgeBg = s.status === 'ok' ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800' :
+                        s.status === 'error' ? 'bg-rose-950/60 text-rose-300 border-rose-800' :
+                        'bg-slate-800 text-slate-400 border-slate-700';
+        const dotBg = s.status === 'ok' ? 'bg-emerald-400' :
+                      s.status === 'error' ? 'bg-rose-400' :
+                      'bg-slate-500';
+        return `
+          <div class="p-2.5 bg-[#0b1120] border border-slate-800/80 rounded-lg flex items-start justify-between gap-2">
+            <div class="space-y-0.5">
+              <div class="flex items-center space-x-1.5">
+                <span class="w-1.5 h-1.5 rounded-full ${dotBg}"></span>
+                <span class="font-bold text-slate-200">${escapeHtml(s.service)}</span>
+              </div>
+              <p class="text-[11px] text-slate-400 font-sans">${escapeHtml(s.message)}</p>
+            </div>
+            <span class="px-2 py-0.5 text-[10px] font-mono border rounded ${badgeBg} uppercase tracking-wider shrink-0">${s.status}</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    const hasError = serviceStatuses.some(s => s.status === 'error');
+    showToast(results.join(' | '), hasError ? 'warning' : 'success', 7000);
+  } finally {
+    if (btnTest) btnTest.disabled = false;
+    if (textTest) textTest.textContent = 'Test API Connections';
+    if (iconTest) iconTest.classList.remove('animate-spin');
+  }
 }
 
 // ============================================================================

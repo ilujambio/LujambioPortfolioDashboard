@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Quantitative Portfolio Dashboard v6.0.1</title>
-  <meta name="description" content="Institutional quantitative portfolio screener, inverse volatility optimizer, and AI executive commentary dashboard (v6.0.1)" />
-  <meta property="og:title" content="Quantitative Portfolio Dashboard v6.0.1" />
-  <meta property="og:description" content="Institutional quantitative portfolio screener, inverse volatility optimizer, and AI executive commentary dashboard (v6.0.1)" />
+  <title>Quantitative Portfolio Dashboard v6.0.2</title>
+  <meta name="description" content="Institutional quantitative portfolio screener, inverse volatility optimizer, and AI executive commentary dashboard (v6.0.2)" />
+  <meta property="og:title" content="Quantitative Portfolio Dashboard v6.0.2" />
+  <meta property="og:description" content="Institutional quantitative portfolio screener, inverse volatility optimizer, and AI executive commentary dashboard (v6.0.2)" />
   <!-- Technical Indicators Library via CDN -->
   <script src="https://cdn.jsdelivr.net/npm/technicalindicators/dist/browser.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -566,7 +566,7 @@
                   </svg>
                 </button>
               </div>
-              <p class="text-[11px] text-slate-500">Powers Phase 3 AI Executive Commentary using fast reasoning models (meta-llama/llama-3-8b-instruct) and intelligent ticker resolution.</p>
+              <p class="text-[11px] text-slate-500">Powers Phase 3 AI Executive Commentary using fast institutional reasoning models (meta-llama/llama-3.1-8b-instruct with multi-provider fallback) and intelligent ticker resolution.</p>
             </div>
 
             <!-- 3. Newsdata API Key -->
@@ -611,8 +611,11 @@
                   </svg>
                   <span>Save Settings</span>
                 </button>
-                <button type="button" id="btn-test-apis" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-mono transition cursor-pointer">
-                  <span>Test API Connections</span>
+                <button type="button" id="btn-test-apis" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-mono transition cursor-pointer flex items-center space-x-1.5">
+                  <svg id="icon-test-apis" class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  <span id="text-test-apis">Test API Connections</span>
                 </button>
               </div>
 
@@ -622,6 +625,15 @@
                 </svg>
                 <span>Clear Local Storage</span>
               </button>
+            </div>
+
+            <!-- API Connection Diagnostics Panel -->
+            <div id="api-test-results-panel" class="hidden mt-4 p-3.5 bg-[#070b13] border border-slate-800 rounded-xl space-y-2 text-xs font-mono">
+              <div class="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                <span class="text-slate-400 font-bold uppercase tracking-wider text-[11px]">API Connection Diagnostics</span>
+                <span id="api-test-timestamp" class="text-[10px] text-slate-500"></span>
+              </div>
+              <div id="api-test-results-list" class="space-y-1.5 text-xs"></div>
             </div>
           </form>
         </div>
@@ -667,7 +679,7 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2">
       <div class="flex items-center space-x-2">
         <span class="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>
-        <span>Quantitative Portfolio Dashboard &bull; Version 6.0.1</span>
+        <span>Quantitative Portfolio Dashboard &bull; Version 6.0.2</span>
       </div>
       <div class="text-slate-400">
         Data sources: Finnhub API &bull; Newsdata.io &bull; OpenRouter AI
