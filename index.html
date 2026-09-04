@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Quantitative Portfolio Dashboard v5.0.1</title>
-  <meta name="description" content="Institutional quantitative portfolio screener, inverse volatility optimizer, and AI executive commentary dashboard (v5.0.1)" />
-  <meta property="og:title" content="Quantitative Portfolio Dashboard v5.0.1" />
-  <meta property="og:description" content="Institutional quantitative portfolio screener, inverse volatility optimizer, and AI executive commentary dashboard (v5.0.1)" />
+  <title>Quantitative Portfolio Dashboard v5.0.2</title>
+  <meta name="description" content="Institutional quantitative portfolio screener, inverse volatility optimizer, and AI executive commentary dashboard (v5.0.2)" />
+  <meta property="og:title" content="Quantitative Portfolio Dashboard v5.0.2" />
+  <meta property="og:description" content="Institutional quantitative portfolio screener, inverse volatility optimizer, and AI executive commentary dashboard (v5.0.2)" />
   <!-- Technical Indicators Library via CDN -->
   <script src="https://cdn.jsdelivr.net/npm/technicalindicators/dist/browser.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -235,7 +235,7 @@
                 <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-950 text-cyan-400 border border-cyan-800/50">PHASE 1</span>
                 <h2 class="text-base font-bold text-white font-mono">Quantitative Screening Results</h2>
               </div>
-              <p class="text-xs text-slate-400 mt-1">Multi-factor filtering: Regime (SMA50 &gt; SMA200), Momentum (MACD &gt; 0), Value (RSI &lt; 70). Survivor threshold = 3/3 Pass.</p>
+              <p class="text-xs text-slate-400 mt-1">Multi-factor filtering: Regime (SMA50 &gt; SMA200), Momentum (MACD Line &gt; Signal Line), Value (RSI &lt; 70). Survivor threshold = 3/3 Pass.</p>
             </div>
             <div class="flex items-center space-x-3 text-xs font-mono">
               <div class="bg-slate-800/90 px-2.5 py-1 rounded border border-slate-700">
@@ -257,7 +257,7 @@
                   <th class="py-3 px-4">Ticker</th>
                   <th class="py-3 px-4">Close Price</th>
                   <th class="py-3 px-4">Regime (SMA50 > 200)</th>
-                  <th class="py-3 px-4">Momentum (MACD > 0)</th>
+                  <th class="py-3 px-4">Momentum (MACD > Signal)</th>
                   <th class="py-3 px-4">Value (RSI &lt; 70)</th>
                   <th class="py-3 px-4 text-center">Gatekeeper Signal (Buy/Sell)</th>
                 </tr>
@@ -615,7 +615,7 @@
 
               <div class="p-2.5 rounded bg-[#070b13] border border-slate-800 space-y-1">
                 <span class="text-emerald-300 font-bold">2. Momentum Filter</span>
-                <p class="text-[11px] text-slate-400 font-sans">MACD (12, 26, 9) > 0. Validates accelerating intermediate upside velocity.</p>
+                <p class="text-[11px] text-slate-400 font-sans">MACD Line &gt; Signal Line (Histogram &gt; 0). Validates accelerating intermediate upside momentum.</p>
               </div>
 
               <div class="p-2.5 rounded bg-[#070b13] border border-slate-800 space-y-1">
@@ -641,7 +641,7 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2">
       <div class="flex items-center space-x-2">
         <span class="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>
-        <span>Quantitative Portfolio Dashboard &bull; Version 5.0.1</span>
+        <span>Quantitative Portfolio Dashboard &bull; Version 5.0.2</span>
       </div>
       <div class="text-slate-400">
         Data sources: Finnhub API &bull; Newsdata.io &bull; OpenRouter AI

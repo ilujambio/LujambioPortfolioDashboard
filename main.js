@@ -1,6 +1,6 @@
 /**
  * Quantitative SPA Portfolio Management Dashboard
- * Version: 5.0.1
+ * Version: 5.0.2
  * Architecture:
  * - Restricted Portfolio Universe: Predefined 20 Institutional Stocks (Tech, Semis, Industrials)
  * - Portfolio Management moved to Settings -> Portfolio subcategory (Dashboard modifications disabled)
@@ -18,7 +18,7 @@
 // ============================================================================
 // CONSTANTS & INITIAL STATE
 // ============================================================================
-const APP_VERSION = 'v5.0.1';
+const APP_VERSION = 'v5.0.2';
 
 // The 20 predefined stocks requested for the quantitative portfolio universe
 const PREDEFINED_20_STOCKS = [
@@ -1490,7 +1490,7 @@ async function runOptimizationPipeline() {
         const candleData = await fetchHistoricalCandlesFromFinnhub(ticker, state.apiKeys.finnhub);
         const metrics = calculateTechnicalIndicators(ticker, candleData.closePrices);
         screenerResults.push(metrics);
-        logTerminal(`   [OK] ${ticker}: ${candleData.count} candles ingested (${candleData.source || 'Real Market'}). SMA50=$${metrics.sma50.toFixed(2)}, RSI=${metrics.rsi.toFixed(1)}, Gatekeeper Signal=${metrics.isBuy ? 'BUY' : 'SELL'}`);
+        logTerminal(`   [OK] ${ticker}: ${candleData.count} candles ingested (${candleData.source || 'Real Market'}). SMA50=$${metrics.sma50.toFixed(2)}, MACD=${metrics.macdLine.toFixed(2)} vs Sig=${metrics.signalLine.toFixed(2)} (${metrics.momentumPass ? 'PASS' : 'FAIL'}), RSI=${metrics.rsi.toFixed(1)}, Gatekeeper Signal=${metrics.isBuy ? 'BUY' : 'SELL'}`);
       } catch (err) {
         logTerminal(`   [FAILED] ${ticker}: ${err.message}. Asset excluded.`);
         failedTickers.push({ ticker, error: err.message });
@@ -1506,9 +1506,9 @@ async function runOptimizationPipeline() {
       throw new Error(`Failed to retrieve authentic historical candles for all assets. Errors: ${failedTickers.map(f => `${f.ticker} (${f.error})`).join('; ')}`);
     }
 
-    // Determine Survivors: Stock must pass ALL 3 technical criteria (Buy = SMA50 > SMA200 AND MACD > 0 AND RSI < 70)
+    // Determine Survivors: Stock must pass ALL 3 technical criteria (Buy = SMA50 > SMA200 AND MACD Line > Signal Line AND RSI < 70)
     const survivors = screenerResults.filter(r => r.isSurvivor);
-    logTerminal(`[PHASE 1 COMPLETE] ${survivors.length}/${screenerResults.length} assets passed all 3 filters (Regime, Momentum, Value).`);
+    logTerminal(`[PHASE 1 COMPLETE] ${survivors.length}/${screenerResults.length} assets passed all 3 filters (Regime: SMA50>200, Momentum: MACD>Signal, Value: RSI<70).`);
 
     renderScreenerTable(screenerResults, failedTickers);
 
@@ -1675,7 +1675,7 @@ async function fetchHistoricalCandlesFromFinnhub(ticker, apiKey) {
 /**
  * Computes SMA(50), SMA(200), MACD(12,26,9), and RSI(14) using technicalindicators library
  * directly from the Finnhub closing prices array.
- * Signal rule: Buy = SMA50 > SMA200 AND MACD > 0 AND RSI < 70
+ * Signal rule: Buy = SMA50 > SMA200 AND MACD Line > Signal Line (Accelerating Momentum / Histogram > 0) AND RSI < 70
  */
 function calculateTechnicalIndicators(ticker, closePricesOrCandles) {
   const closes = Array.isArray(closePricesOrCandles) && typeof closePricesOrCandles[0] === 'object' && closePricesOrCandles[0] !== null
@@ -1740,8 +1740,11 @@ function calculateTechnicalIndicators(ticker, closePricesOrCandles) {
     macdHist = macdLine - signalLine;
   }
 
-  // Momentum Check: MACD > 0
-  const momentumPass = macdLine > 0;
+  // Momentum Check: MACD Line > Signal Line (Accelerating Momentum / Histogram > 0)
+  // Strictly checks that the calculated MACD value is strictly greater than its MACD Signal value
+  const momentumPass = (typeof macdLine === 'number' && typeof signalLine === 'number')
+    ? (macdLine > signalLine)
+    : (macdHist > 0);
 
   // 4. RSI (14)
   let rsi = 50;
@@ -1755,7 +1758,7 @@ function calculateTechnicalIndicators(ticker, closePricesOrCandles) {
   // Value Check: RSI < 70 (not overbought)
   const valuePass = rsi < 70;
 
-  // Gatekeeper Signal: Buy = SMA50 > SMA200 AND MACD > 0 AND RSI < 70
+  // Gatekeeper Signal: Buy = SMA50 > SMA200 AND MACD Line > Signal Line AND RSI < 70
   const isBuy = regimePass && momentumPass && valuePass;
   const isSurvivor = isBuy;
 
@@ -1912,7 +1915,7 @@ function renderScreenerTable(results, failedTickers = []) {
           </div>
         </td>
 
-        <!-- Momentum: MACD > 0 -->
+        <!-- Momentum: MACD Line > Signal Line -->
         <td class="py-3 px-4">
           <div class="flex items-center space-x-1.5">
             <span class="w-1.5 h-1.5 rounded-full ${r.momentumPass ? 'bg-emerald-400' : 'bg-rose-500'}"></span>
@@ -1920,7 +1923,7 @@ function renderScreenerTable(results, failedTickers = []) {
               ${r.momentumPass ? 'PASS' : 'FAIL'}
             </span>
             <span class="text-[10px] text-slate-500 hidden md:inline">
-              (MACD: ${r.macdLine > 0 ? '+' : ''}${r.macdLine.toFixed(2)})
+              (MACD: ${r.macdLine.toFixed(2)} ${r.momentumPass ? '>' : '<='} Sig: ${r.signalLine.toFixed(2)})
             </span>
           </div>
         </td>
@@ -2197,7 +2200,7 @@ async function generateAICommentary(analysisPayload, top2, newsMap, apiKey) {
     weight: `${(s.weight * 100).toFixed(2)}%`,
     annualized_volatility: `${(s.annualVol * 100).toFixed(1)}%`,
     sma50_vs_200: s.sma50 > s.sma200 ? 'Bullish Golden Cross (SMA50 > SMA200)' : 'Bearish Death Cross (SMA50 < SMA200)',
-    macd: s.macdLine.toFixed(2),
+    macd_momentum: `MACD Line: ${s.macdLine.toFixed(2)} vs Signal Line: ${s.signalLine.toFixed(2)} (Histogram: ${s.macdHist > 0 ? '+' : ''}${s.macdHist.toFixed(2)} - Accelerating Momentum)`,
     rsi: s.rsi.toFixed(1),
   }));
 
